@@ -21,6 +21,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var recognizer: GestureRecognizer?
     private var coordinator: InputCoordinator?
     private var onboarding: OnboardingWindow?
+    private var hud: DebugHUD?
 
     // MARK: NSApplicationDelegate
 
@@ -93,7 +94,8 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showDebugHUD() {
-        // Wired up in Task 17.
+        if hud == nil { hud = DebugHUD() }
+        hud?.showWindow(nil)
     }
 
     // MARK: Pipeline lifecycle
@@ -107,10 +109,14 @@ final class AppController: NSObject, NSApplicationDelegate {
         coord.cursorController = CursorController(config: config)
         coord.scrollController = ScrollController(config: config)
 
-        det.setHandler { [weak coord, weak rec] obs in
+        det.setHandler { [weak self, weak coord, weak rec] obs in
             guard let coord, let rec else { return }
             let state = rec.step(obs ?? HandObservation(timestampSec: 0, points: [:]))
-            DispatchQueue.main.async { coord.apply(state: state) }
+            let conf = obs?.minConfidence ?? 0.0
+            DispatchQueue.main.async {
+                coord.apply(state: state)
+                self?.hud?.update(state: state, frameRateHz: 0, visionLatencyMs: 0, minConfidence: conf)
+            }
         }
 
         do {
