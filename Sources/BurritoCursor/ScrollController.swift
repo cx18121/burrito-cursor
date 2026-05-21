@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import BurritoCursorCore
 
 final class ScrollController {
@@ -18,7 +19,10 @@ final class ScrollController {
                                 wheelCount: 1,
                                 wheel1: -lines, // invert: hand moves down → page scrolls down
                                 wheel2: 0,
-                                wheel3: 0) else { return }
+                                wheel3: 0) else {
+            NSLog("BurritoCursor: failed to create scroll CGEvent")
+            return
+        }
         evt.post(tap: .cghidEventTap)
     }
 }

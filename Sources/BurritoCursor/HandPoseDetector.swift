@@ -1,7 +1,14 @@
 import Vision
 import CoreVideo
 import CoreMedia
+import QuartzCore
 import BurritoCursorCore
+
+/// Rolling pipeline stats — read every frame to populate the Debug HUD.
+struct DetectorStats {
+    var frameRateHz: Double = 0
+    var visionLatencyMs: Double = 0
+}
 
 final class HandPoseDetector {
     private let request: VNDetectHumanHandPoseRequest
@@ -9,15 +16,26 @@ final class HandPoseDetector {
     private var pendingBuffer: (CVPixelBuffer, CMTime)?
     private var isProcessing = false
     private let lock = NSLock()
-    private var handler: ((HandObservation?) -> Void)?
+    private var _handler: ((HandObservation?, DetectorStats) -> Void)?
+
+    // Stats tracking — exponential moving average so the HUD reads smooth.
+    private var lastFrameTime: CFTimeInterval?
+    private var fpsEMA: Double = 0
+    private var latencyEMA: Double = 0
 
     init() {
         request = VNDetectHumanHandPoseRequest()
         request.maximumHandCount = 1
     }
 
-    func setHandler(_ h: @escaping (HandObservation?) -> Void) {
-        handler = h
+    func setHandler(_ h: @escaping (HandObservation?, DetectorStats) -> Void) {
+        lock.lock(); defer { lock.unlock() }
+        _handler = h
+    }
+
+    private func currentHandler() -> ((HandObservation?, DetectorStats) -> Void)? {
+        lock.lock(); defer { lock.unlock() }
+        return _handler
     }
 
     /// Submit a frame for processing. If the detector is busy, the new frame replaces
@@ -44,8 +62,22 @@ final class HandPoseDetector {
                 self.pendingBuffer = nil
                 self.lock.unlock()
 
+                let visionStart = CACurrentMediaTime()
                 let obs = self.runVision(on: buf, timestamp: ts)
-                self.handler?(obs)
+                let visionElapsedMs = (CACurrentMediaTime() - visionStart) * 1000
+
+                let now = CACurrentMediaTime()
+                if let prev = self.lastFrameTime {
+                    let inst = 1.0 / max(now - prev, 1e-6)
+                    self.fpsEMA = self.fpsEMA == 0 ? inst : (0.9 * self.fpsEMA + 0.1 * inst)
+                }
+                self.lastFrameTime = now
+                self.latencyEMA = self.latencyEMA == 0
+                    ? visionElapsedMs
+                    : (0.9 * self.latencyEMA + 0.1 * visionElapsedMs)
+
+                let stats = DetectorStats(frameRateHz: self.fpsEMA, visionLatencyMs: self.latencyEMA)
+                self.currentHandler()?(obs, stats)
             }
         }
     }

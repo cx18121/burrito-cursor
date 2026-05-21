@@ -12,9 +12,14 @@ final class OnboardingWindow: NSWindowController {
         Point your index finger at the screen with other fingers curled.
         Bend your index finger to click. Extend index + middle for scroll.
         """)
-    private let camera = CameraPipeline()
-    private let detector = HandPoseDetector()
+    private var camera: CameraPipeline?
+    private var detector: HandPoseDetector?
     private let ciContext = CIContext()
+
+    /// True once we've received at least one camera frame. AppController uses this
+    /// to decide whether to mark first-run as complete — if camera was never seen,
+    /// onboarding should re-open on the next launch.
+    private(set) var capturedAtLeastOneFrame = false
 
     convenience init() {
         let win = NSWindow(
@@ -52,7 +57,12 @@ final class OnboardingWindow: NSWindowController {
     }
 
     func startPreview() {
-        detector.setHandler { [weak self] obs in
+        // Always rebuild — CameraPipeline / HandPoseDetector are not designed
+        // for restart on the same instance.
+        stopPreview()
+        let cam = CameraPipeline()
+        let det = HandPoseDetector()
+        det.setHandler { [weak self] obs, _ in
             DispatchQueue.main.async {
                 if let obs, !obs.points.isEmpty {
                     let pose = PoseClassifier.classify(obs)
@@ -69,13 +79,22 @@ final class OnboardingWindow: NSWindowController {
             }
         }
         do {
-            try camera.start { [weak self] buf, ts in
-                self?.detector.submit(buffer: buf, timestamp: ts)
+            try cam.start { [weak self] buf, ts in
+                self?.capturedAtLeastOneFrame = true
+                det.submit(buffer: buf, timestamp: ts)
                 self?.updatePreview(buf)
             }
+            self.camera = cam
+            self.detector = det
         } catch {
             statusLabel.stringValue = "Camera error: \(error.localizedDescription)"
         }
+    }
+
+    private func stopPreview() {
+        camera?.stop()
+        camera = nil
+        detector = nil
     }
 
     private func updatePreview(_ pb: CVPixelBuffer) {
@@ -88,7 +107,7 @@ final class OnboardingWindow: NSWindowController {
     }
 
     override func close() {
-        camera.stop()
+        stopPreview()
         super.close()
     }
 }

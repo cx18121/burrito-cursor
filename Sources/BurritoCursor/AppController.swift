@@ -22,6 +22,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var coordinator: InputCoordinator?
     private var onboarding: OnboardingWindow?
     private var hud: DebugHUD?
+    private var signalSources: [DispatchSourceSignal] = []
 
     // MARK: NSApplicationDelegate
 
@@ -30,11 +31,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         installStatusItem()
         installSleepObserver()
         installActivationObserver()
+        installSignalHandlers()
         installHotkey()
 
         if !UserDefaults.standard.bool(forKey: "onboardingShown") {
             showOnboarding()
-            UserDefaults.standard.set(true, forKey: "onboardingShown")
         }
     }
 
@@ -89,8 +90,30 @@ final class AppController: NSObject, NSApplicationDelegate {
         if onboarding == nil { onboarding = OnboardingWindow() }
         onboarding?.showWindow(nil)
         onboarding?.window?.makeKeyAndOrderFront(nil)
+        // Observe window close so we can persist onboardingShown only on success.
+        if let win = onboarding?.window {
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(onOnboardingClosed),
+                name: NSWindow.willCloseNotification, object: win
+            )
+        }
         NSApp.activate(ignoringOtherApps: true)
         onboarding?.startPreview()
+    }
+
+    @objc private func onOnboardingClosed(_ note: Notification) {
+        defer {
+            if let win = onboarding?.window {
+                NotificationCenter.default.removeObserver(
+                    self, name: NSWindow.willCloseNotification, object: win
+                )
+            }
+        }
+        // Only mark onboarding done if the user actually saw the camera working.
+        // Otherwise they should be re-prompted on next launch.
+        if onboarding?.capturedAtLeastOneFrame == true {
+            UserDefaults.standard.set(true, forKey: "onboardingShown")
+        }
     }
 
     @objc private func showDebugHUD() {
@@ -109,13 +132,18 @@ final class AppController: NSObject, NSApplicationDelegate {
         coord.cursorController = CursorController(config: config)
         coord.scrollController = ScrollController(config: config)
 
-        det.setHandler { [weak self, weak coord, weak rec] obs in
+        det.setHandler { [weak self, weak coord, weak rec] obs, stats in
             guard let coord, let rec else { return }
             let state = rec.step(obs ?? HandObservation(timestampSec: 0, points: [:]))
             let conf = obs?.minConfidence ?? 0.0
             DispatchQueue.main.async {
                 coord.apply(state: state)
-                self?.hud?.update(state: state, frameRateHz: 0, visionLatencyMs: 0, minConfidence: conf)
+                self?.hud?.update(
+                    state: state,
+                    frameRateHz: stats.frameRateHz,
+                    visionLatencyMs: stats.visionLatencyMs,
+                    minConfidence: conf
+                )
             }
         }
 
@@ -229,6 +257,24 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func installHotkey() {
         KeyboardShortcuts.onKeyDown(for: .toggleBurritoCursor) { [weak self] in
             self?.toggle()
+        }
+    }
+
+    // MARK: Signal handlers
+
+    /// Catch SIGINT/SIGTERM and force-release any pending synthetic input before exiting.
+    /// applicationWillTerminate does not fire on these signals (it's NSApplication-only),
+    /// so without this a `kill` mid-click leaves a stuck mouseDown in the OS.
+    private func installSignalHandlers() {
+        for sig in [SIGINT, SIGTERM] {
+            signal(sig, SIG_IGN) // prevent default termination; dispatch source handles it
+            let src = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            src.setEventHandler { [weak self] in
+                self?.coordinator?.forceRelease()
+                NSApp.terminate(nil)
+            }
+            src.resume()
+            signalSources.append(src)
         }
     }
 

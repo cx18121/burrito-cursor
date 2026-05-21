@@ -70,7 +70,10 @@ final class CursorController {
         guard let evt = CGEvent(mouseEventSource: nil,
                                 mouseType: eventType,
                                 mouseCursorPosition: p,
-                                mouseButton: .left) else { return }
+                                mouseButton: .left) else {
+            NSLog("BurritoCursor: failed to create CGEvent (type=%d)", eventType.rawValue)
+            return
+        }
         evt.post(tap: .cghidEventTap)
     }
 }
