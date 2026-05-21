@@ -1,5 +1,6 @@
 import AppKit
 
-print("BurritoCursor starting…")
-// Real entry point installed in Task 13.
-exit(0)
+let app = NSApplication.shared
+let delegate = AppController()
+app.delegate = delegate
+app.run()
