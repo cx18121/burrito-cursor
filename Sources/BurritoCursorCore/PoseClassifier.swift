@@ -15,9 +15,9 @@ public struct ClassifiedPose: Equatable {
 }
 
 public enum PoseClassifier {
-    static let extendedAngleDeg = 160.0
-    static let curledAngleDeg = 110.0
-    static let clickRawThresholdDeg = 140.0
+    public static let extendedAngleDeg = 160.0
+    public static let curledAngleDeg = 110.0
+    public static let clickRawThresholdDeg = 140.0
 
     /// Per-frame raw classification. The state machine in `GestureRecognizer`
     /// applies hysteresis using `Config.clickEnterAngleDeg` / `clickExitAngleDeg`.

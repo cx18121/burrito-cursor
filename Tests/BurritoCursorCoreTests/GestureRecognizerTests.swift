@@ -136,6 +136,38 @@ final class GestureRecognizerTests: XCTestCase {
         }
     }
 
+    // MARK: - Phantom-click prevention
+
+    func testClosedFistDoesNotProduceClick() {
+        let r = GestureRecognizer(config: .defaults)
+        // Acquire pointing first
+        for i in 0..<3 { _ = r.step(pointingHand(t: Double(i)/30)) }
+        // Suddenly all fingers curl to a fist (60° on every finger)
+        for i in 3..<8 {
+            let fist = HandBuilder.makeHand(
+                indexBendDeg: 60, middleBendDeg: 60, ringBendDeg: 60, pinkyBendDeg: 60,
+                timestamp: Double(i)/30
+            )
+            let state = r.step(fist)
+            // Must never reach .clicking, and the cursor-locking .clickLatched is also unwanted
+            // because it would freeze the cursor on an accidental fist. Idle or pointing is OK.
+            if case .clicking = state { XCTFail("Fist must not click") }
+            if case .clickLatched = state { XCTFail("Fist must not latch") }
+        }
+    }
+
+    func testAllFingersExtendedDoesNotLatch() {
+        let r = GestureRecognizer(config: .defaults)
+        for i in 0..<3 { _ = r.step(pointingHand(t: Double(i)/30)) }
+        // Wave hand — all fingers extended (a "stop" gesture)
+        let wave = HandBuilder.makeHand(
+            indexBendDeg: 180, middleBendDeg: 180, ringBendDeg: 180, pinkyBendDeg: 180,
+            timestamp: 3.0/30
+        )
+        let state = r.step(wave)
+        if case .clickLatched = state { XCTFail("Open-hand wave must not latch a click") }
+    }
+
     // MARK: - Scroll
 
     func testEnterScrollFromPointing() {

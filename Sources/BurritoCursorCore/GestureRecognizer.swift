@@ -79,17 +79,25 @@ public final class GestureRecognizer {
             if pose.indexAngleDeg > config.clickExitAngleDeg {
                 return .pointing(point: mcp)
             }
-            // Confirm if angle stays below enter threshold for `entryFrames` frames
+            // Confirm only if every recent frame was a true click candidate (.indexBent).
+            // Gating on .indexBent (not just angle) prevents a closed fist from confirming.
             let recent = window.suffix(entryFrames)
             if recent.count == entryFrames &&
-                recent.allSatisfy({ $0.pose.indexAngleDeg < config.clickEnterAngleDeg }) {
+                recent.allSatisfy({ $0.pose.kind == .indexBent }) {
                 return .clicking(point: mcp)
             }
             return .clickLatched(point: mcp)
 
         case .pointing:
-            // Click latch: angle drops below exit threshold while still in pointing-shape
-            if pose.indexAngleDeg < config.clickExitAngleDeg && pose.kind != .scrolling {
+            // Click latch: index bend in the click window AND other fingers stay curled.
+            // Requiring others-curled rejects fists and waves — only a real index-finger-only
+            // bend (or the in-flight transition between pointing and indexBent) latches.
+            let othersCurled = pose.middleAngleDeg < PoseClassifier.curledAngleDeg
+                && pose.ringAngleDeg < PoseClassifier.curledAngleDeg
+                && pose.pinkyAngleDeg < PoseClassifier.curledAngleDeg
+            let intentionalIndexBend = pose.indexAngleDeg >= PoseClassifier.curledAngleDeg
+                && pose.indexAngleDeg < config.clickExitAngleDeg
+            if othersCurled && intentionalIndexBend && pose.kind != .scrolling {
                 return .clickLatched(point: mcp)
             }
             // Scroll promotion: sustained scrolling pose
