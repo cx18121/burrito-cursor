@@ -1,0 +1,702 @@
+[
+  {
+    "points" : {
+      "indexMCP" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.5
+      },
+      "indexPIP" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.55
+      },
+      "indexTip" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.6000000000000001
+      },
+      "middleMCP" : {
+        "confidence" : 1,
+        "x" : 0.52,
+        "y" : 0.5
+      },
+      "middlePIP" : {
+        "confidence" : 1,
+        "x" : 0.52,
+        "y" : 0.55
+      },
+      "middleTip" : {
+        "confidence" : 1,
+        "x" : 0.5633012701892219,
+        "y" : 0.525
+      },
+      "pinkyMCP" : {
+        "confidence" : 1,
+        "x" : 0.56,
+        "y" : 0.5
+      },
+      "pinkyPIP" : {
+        "confidence" : 1,
+        "x" : 0.56,
+        "y" : 0.55
+      },
+      "pinkyTip" : {
+        "confidence" : 1,
+        "x" : 0.603301270189222,
+        "y" : 0.525
+      },
+      "ringMCP" : {
+        "confidence" : 1,
+        "x" : 0.54,
+        "y" : 0.5
+      },
+      "ringPIP" : {
+        "confidence" : 1,
+        "x" : 0.54,
+        "y" : 0.55
+      },
+      "ringTip" : {
+        "confidence" : 1,
+        "x" : 0.583301270189222,
+        "y" : 0.525
+      },
+      "wrist" : {
+        "confidence" : 1,
+        "x" : 0.53,
+        "y" : 0.3
+      }
+    },
+    "timestampSec" : 0
+  },
+  {
+    "points" : {
+      "indexMCP" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.5
+      },
+      "indexPIP" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.55
+      },
+      "indexTip" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.6000000000000001
+      },
+      "middleMCP" : {
+        "confidence" : 1,
+        "x" : 0.52,
+        "y" : 0.5
+      },
+      "middlePIP" : {
+        "confidence" : 1,
+        "x" : 0.52,
+        "y" : 0.55
+      },
+      "middleTip" : {
+        "confidence" : 1,
+        "x" : 0.5633012701892219,
+        "y" : 0.525
+      },
+      "pinkyMCP" : {
+        "confidence" : 1,
+        "x" : 0.56,
+        "y" : 0.5
+      },
+      "pinkyPIP" : {
+        "confidence" : 1,
+        "x" : 0.56,
+        "y" : 0.55
+      },
+      "pinkyTip" : {
+        "confidence" : 1,
+        "x" : 0.603301270189222,
+        "y" : 0.525
+      },
+      "ringMCP" : {
+        "confidence" : 1,
+        "x" : 0.54,
+        "y" : 0.5
+      },
+      "ringPIP" : {
+        "confidence" : 1,
+        "x" : 0.54,
+        "y" : 0.55
+      },
+      "ringTip" : {
+        "confidence" : 1,
+        "x" : 0.583301270189222,
+        "y" : 0.525
+      },
+      "wrist" : {
+        "confidence" : 1,
+        "x" : 0.53,
+        "y" : 0.3
+      }
+    },
+    "timestampSec" : 0.03333333333333333
+  },
+  {
+    "points" : {
+      "indexMCP" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.5
+      },
+      "indexPIP" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.55
+      },
+      "indexTip" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.6000000000000001
+      },
+      "middleMCP" : {
+        "confidence" : 1,
+        "x" : 0.52,
+        "y" : 0.5
+      },
+      "middlePIP" : {
+        "confidence" : 1,
+        "x" : 0.52,
+        "y" : 0.55
+      },
+      "middleTip" : {
+        "confidence" : 1,
+        "x" : 0.5633012701892219,
+        "y" : 0.525
+      },
+      "pinkyMCP" : {
+        "confidence" : 1,
+        "x" : 0.56,
+        "y" : 0.5
+      },
+      "pinkyPIP" : {
+        "confidence" : 1,
+        "x" : 0.56,
+        "y" : 0.55
+      },
+      "pinkyTip" : {
+        "confidence" : 1,
+        "x" : 0.603301270189222,
+        "y" : 0.525
+      },
+      "ringMCP" : {
+        "confidence" : 1,
+        "x" : 0.54,
+        "y" : 0.5
+      },
+      "ringPIP" : {
+        "confidence" : 1,
+        "x" : 0.54,
+        "y" : 0.55
+      },
+      "ringTip" : {
+        "confidence" : 1,
+        "x" : 0.583301270189222,
+        "y" : 0.525
+      },
+      "wrist" : {
+        "confidence" : 1,
+        "x" : 0.53,
+        "y" : 0.3
+      }
+    },
+    "timestampSec" : 0.06666666666666667
+  },
+  {
+    "points" : {
+      "indexMCP" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.5
+      },
+      "indexPIP" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.55
+      },
+      "indexTip" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.6000000000000001
+      },
+      "middleMCP" : {
+        "confidence" : 1,
+        "x" : 0.52,
+        "y" : 0.5
+      },
+      "middlePIP" : {
+        "confidence" : 1,
+        "x" : 0.52,
+        "y" : 0.55
+      },
+      "middleTip" : {
+        "confidence" : 1,
+        "x" : 0.5633012701892219,
+        "y" : 0.525
+      },
+      "pinkyMCP" : {
+        "confidence" : 1,
+        "x" : 0.56,
+        "y" : 0.5
+      },
+      "pinkyPIP" : {
+        "confidence" : 1,
+        "x" : 0.56,
+        "y" : 0.55
+      },
+      "pinkyTip" : {
+        "confidence" : 1,
+        "x" : 0.603301270189222,
+        "y" : 0.525
+      },
+      "ringMCP" : {
+        "confidence" : 1,
+        "x" : 0.54,
+        "y" : 0.5
+      },
+      "ringPIP" : {
+        "confidence" : 1,
+        "x" : 0.54,
+        "y" : 0.55
+      },
+      "ringTip" : {
+        "confidence" : 1,
+        "x" : 0.583301270189222,
+        "y" : 0.525
+      },
+      "wrist" : {
+        "confidence" : 1,
+        "x" : 0.53,
+        "y" : 0.3
+      }
+    },
+    "timestampSec" : 0.1
+  },
+  {
+    "points" : {
+      "indexMCP" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.5
+      },
+      "indexPIP" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.55
+      },
+      "indexTip" : {
+        "confidence" : 1,
+        "x" : 0.5,
+        "y" : 0.6000000000000001
+      },
+      "middleMCP" : {
+        "confidence" : 1,
+        "x" : 0.52,
+        "y" : 0.5
+      },
+      "middlePIP" : {
+        "confidence" : 1,
+        "x" : 0.52,
+        "y" : 0.55
+      },
+      "middleTip" : {
+        "confidence" : 1,
+        "x" : 0.5633012701892219,
+        "y" : 0.525
+      },
+      "pinkyMCP" : {
+        "confidence" : 1,
+        "x" : 0.56,
+        "y" : 0.5
+      },
+      "pinkyPIP" : {
+        "confidence" : 1,
+        "x" : 0.56,
+        "y" : 0.55
+      },
+      "pinkyTip" : {
+        "confidence" : 1,
+        "x" : 0.603301270189222,
+        "y" : 0.525
+      },
+      "ringMCP" : {
+        "confidence" : 1,
+        "x" : 0.54,
+        "y" : 0.5
+      },
+      "ringPIP" : {
+        "confidence" : 1,
+        "x" : 0.54,
+        "y" : 0.55
+      },
+      "ringTip" : {
+        "confidence" : 1,
+        "x" : 0.583301270189222,
+        "y" : 0.525
+      },
+      "wrist" : {
+        "confidence" : 1,
+        "x" : 0.53,
+        "y" : 0.3
+      }
+    },
+    "timestampSec" : 0.13333333333333333
+  },
+  {
+    "points" : {
+      "indexMCP" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.1
+      },
+      "indexPIP" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.15000000000000002
+      },
+      "indexTip" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.2
+      },
+      "middleMCP" : {
+        "confidence" : 1,
+        "x" : 0.12000000000000001,
+        "y" : 0.1
+      },
+      "middlePIP" : {
+        "confidence" : 1,
+        "x" : 0.12000000000000001,
+        "y" : 0.15000000000000002
+      },
+      "middleTip" : {
+        "confidence" : 1,
+        "x" : 0.16330127018922194,
+        "y" : 0.12500000000000003
+      },
+      "pinkyMCP" : {
+        "confidence" : 1,
+        "x" : 0.16,
+        "y" : 0.1
+      },
+      "pinkyPIP" : {
+        "confidence" : 1,
+        "x" : 0.16,
+        "y" : 0.15000000000000002
+      },
+      "pinkyTip" : {
+        "confidence" : 1,
+        "x" : 0.20330127018922195,
+        "y" : 0.12500000000000003
+      },
+      "ringMCP" : {
+        "confidence" : 1,
+        "x" : 0.14,
+        "y" : 0.1
+      },
+      "ringPIP" : {
+        "confidence" : 1,
+        "x" : 0.14,
+        "y" : 0.15000000000000002
+      },
+      "ringTip" : {
+        "confidence" : 1,
+        "x" : 0.18330127018922196,
+        "y" : 0.12500000000000003
+      },
+      "wrist" : {
+        "confidence" : 1,
+        "x" : 0.13,
+        "y" : -0.1
+      }
+    },
+    "timestampSec" : 0.16666666666666666
+  },
+  {
+    "points" : {
+      "indexMCP" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.1
+      },
+      "indexPIP" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.15000000000000002
+      },
+      "indexTip" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.2
+      },
+      "middleMCP" : {
+        "confidence" : 1,
+        "x" : 0.12000000000000001,
+        "y" : 0.1
+      },
+      "middlePIP" : {
+        "confidence" : 1,
+        "x" : 0.12000000000000001,
+        "y" : 0.15000000000000002
+      },
+      "middleTip" : {
+        "confidence" : 1,
+        "x" : 0.16330127018922194,
+        "y" : 0.12500000000000003
+      },
+      "pinkyMCP" : {
+        "confidence" : 1,
+        "x" : 0.16,
+        "y" : 0.1
+      },
+      "pinkyPIP" : {
+        "confidence" : 1,
+        "x" : 0.16,
+        "y" : 0.15000000000000002
+      },
+      "pinkyTip" : {
+        "confidence" : 1,
+        "x" : 0.20330127018922195,
+        "y" : 0.12500000000000003
+      },
+      "ringMCP" : {
+        "confidence" : 1,
+        "x" : 0.14,
+        "y" : 0.1
+      },
+      "ringPIP" : {
+        "confidence" : 1,
+        "x" : 0.14,
+        "y" : 0.15000000000000002
+      },
+      "ringTip" : {
+        "confidence" : 1,
+        "x" : 0.18330127018922196,
+        "y" : 0.12500000000000003
+      },
+      "wrist" : {
+        "confidence" : 1,
+        "x" : 0.13,
+        "y" : -0.1
+      }
+    },
+    "timestampSec" : 0.2
+  },
+  {
+    "points" : {
+      "indexMCP" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.1
+      },
+      "indexPIP" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.15000000000000002
+      },
+      "indexTip" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.2
+      },
+      "middleMCP" : {
+        "confidence" : 1,
+        "x" : 0.12000000000000001,
+        "y" : 0.1
+      },
+      "middlePIP" : {
+        "confidence" : 1,
+        "x" : 0.12000000000000001,
+        "y" : 0.15000000000000002
+      },
+      "middleTip" : {
+        "confidence" : 1,
+        "x" : 0.16330127018922194,
+        "y" : 0.12500000000000003
+      },
+      "pinkyMCP" : {
+        "confidence" : 1,
+        "x" : 0.16,
+        "y" : 0.1
+      },
+      "pinkyPIP" : {
+        "confidence" : 1,
+        "x" : 0.16,
+        "y" : 0.15000000000000002
+      },
+      "pinkyTip" : {
+        "confidence" : 1,
+        "x" : 0.20330127018922195,
+        "y" : 0.12500000000000003
+      },
+      "ringMCP" : {
+        "confidence" : 1,
+        "x" : 0.14,
+        "y" : 0.1
+      },
+      "ringPIP" : {
+        "confidence" : 1,
+        "x" : 0.14,
+        "y" : 0.15000000000000002
+      },
+      "ringTip" : {
+        "confidence" : 1,
+        "x" : 0.18330127018922196,
+        "y" : 0.12500000000000003
+      },
+      "wrist" : {
+        "confidence" : 1,
+        "x" : 0.13,
+        "y" : -0.1
+      }
+    },
+    "timestampSec" : 0.23333333333333334
+  },
+  {
+    "points" : {
+      "indexMCP" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.1
+      },
+      "indexPIP" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.15000000000000002
+      },
+      "indexTip" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.2
+      },
+      "middleMCP" : {
+        "confidence" : 1,
+        "x" : 0.12000000000000001,
+        "y" : 0.1
+      },
+      "middlePIP" : {
+        "confidence" : 1,
+        "x" : 0.12000000000000001,
+        "y" : 0.15000000000000002
+      },
+      "middleTip" : {
+        "confidence" : 1,
+        "x" : 0.16330127018922194,
+        "y" : 0.12500000000000003
+      },
+      "pinkyMCP" : {
+        "confidence" : 1,
+        "x" : 0.16,
+        "y" : 0.1
+      },
+      "pinkyPIP" : {
+        "confidence" : 1,
+        "x" : 0.16,
+        "y" : 0.15000000000000002
+      },
+      "pinkyTip" : {
+        "confidence" : 1,
+        "x" : 0.20330127018922195,
+        "y" : 0.12500000000000003
+      },
+      "ringMCP" : {
+        "confidence" : 1,
+        "x" : 0.14,
+        "y" : 0.1
+      },
+      "ringPIP" : {
+        "confidence" : 1,
+        "x" : 0.14,
+        "y" : 0.15000000000000002
+      },
+      "ringTip" : {
+        "confidence" : 1,
+        "x" : 0.18330127018922196,
+        "y" : 0.12500000000000003
+      },
+      "wrist" : {
+        "confidence" : 1,
+        "x" : 0.13,
+        "y" : -0.1
+      }
+    },
+    "timestampSec" : 0.26666666666666666
+  },
+  {
+    "points" : {
+      "indexMCP" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.1
+      },
+      "indexPIP" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.15000000000000002
+      },
+      "indexTip" : {
+        "confidence" : 1,
+        "x" : 0.1,
+        "y" : 0.2
+      },
+      "middleMCP" : {
+        "confidence" : 1,
+        "x" : 0.12000000000000001,
+        "y" : 0.1
+      },
+      "middlePIP" : {
+        "confidence" : 1,
+        "x" : 0.12000000000000001,
+        "y" : 0.15000000000000002
+      },
+      "middleTip" : {
+        "confidence" : 1,
+        "x" : 0.16330127018922194,
+        "y" : 0.12500000000000003
+      },
+      "pinkyMCP" : {
+        "confidence" : 1,
+        "x" : 0.16,
+        "y" : 0.1
+      },
+      "pinkyPIP" : {
+        "confidence" : 1,
+        "x" : 0.16,
+        "y" : 0.15000000000000002
+      },
+      "pinkyTip" : {
+        "confidence" : 1,
+        "x" : 0.20330127018922195,
+        "y" : 0.12500000000000003
+      },
+      "ringMCP" : {
+        "confidence" : 1,
+        "x" : 0.14,
+        "y" : 0.1
+      },
+      "ringPIP" : {
+        "confidence" : 1,
+        "x" : 0.14,
+        "y" : 0.15000000000000002
+      },
+      "ringTip" : {
+        "confidence" : 1,
+        "x" : 0.18330127018922196,
+        "y" : 0.12500000000000003
+      },
+      "wrist" : {
+        "confidence" : 1,
+        "x" : 0.13,
+        "y" : -0.1
+      }
+    },
+    "timestampSec" : 0.3
+  }
+]

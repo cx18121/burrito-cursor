@@ -20,6 +20,10 @@ let package = Package(
             ]
         ),
         .target(name: "BurritoCursorCore"),
-        .testTarget(name: "BurritoCursorCoreTests", dependencies: ["BurritoCursorCore"]),
+        .testTarget(
+            name: "BurritoCursorCoreTests",
+            dependencies: ["BurritoCursorCore"],
+            resources: [.copy("Fixtures")]
+        ),
     ]
 )
