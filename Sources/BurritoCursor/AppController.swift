@@ -20,6 +20,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var detector: HandPoseDetector?
     private var recognizer: GestureRecognizer?
     private var coordinator: InputCoordinator?
+    private var onboarding: OnboardingWindow?
 
     // MARK: NSApplicationDelegate
 
@@ -29,6 +30,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         installSleepObserver()
         installActivationObserver()
         installHotkey()
+
+        if !UserDefaults.standard.bool(forKey: "onboardingShown") {
+            showOnboarding()
+            UserDefaults.standard.set(true, forKey: "onboardingShown")
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -56,6 +62,10 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.addItem(toggleItem)
         menu.addItem(NSMenuItem.separator())
 
+        let onboardItem = NSMenuItem(title: "Onboarding…", action: #selector(showOnboarding), keyEquivalent: "")
+        onboardItem.target = self
+        menu.addItem(onboardItem)
+
         let hudItem = NSMenuItem(title: "Show Debug HUD", action: #selector(showDebugHUD), keyEquivalent: "")
         hudItem.target = self
         menu.addItem(hudItem)
@@ -69,6 +79,17 @@ final class AppController: NSObject, NSApplicationDelegate {
     @objc private func toggle() {
         if isOn { teardown() } else { startup() }
         refreshStatusItem()
+    }
+
+    @objc private func showOnboarding() {
+        // Onboarding opens its own camera session. To avoid two AVCaptureSessions
+        // fighting over the camera, tear the main pipeline down while onboarding shows.
+        if isOn { teardown(); refreshStatusItem() }
+        if onboarding == nil { onboarding = OnboardingWindow() }
+        onboarding?.showWindow(nil)
+        onboarding?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        onboarding?.startPreview()
     }
 
     @objc private func showDebugHUD() {
