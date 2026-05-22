@@ -47,6 +47,27 @@ final class DebugHUD: NSWindowController {
         super.close()
     }
 
+    /// Shown to the user when the cursor pipeline isn't running — without this
+    /// the HUD just sits blank and looks broken.
+    func showDisabledState() {
+        let text = """
+        Cursor is disabled.
+
+        Click 🌯 → Enable Cursor (or ⌃⌥H) to start
+        the camera and see live data here.
+
+        Once enabled this panel shows:
+          • current gesture state
+          • per-finger curl ratios
+          • frame rate + Vision latency
+          • detected landmark count
+          • recent state transitions
+        """
+        DispatchQueue.main.async { [textView] in
+            textView.string = text
+        }
+    }
+
     /// Bounded transition log — last N kind-level transitions surfaced in the HUD.
     private var transitions: [(t: Double, kind: String)] = []
     private let transitionLimit = 6

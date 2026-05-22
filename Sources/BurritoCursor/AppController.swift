@@ -161,7 +161,15 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     @objc private func showDebugHUD() {
         if hud == nil { hud = DebugHUD() }
+        // For .accessory apps, activate first or the window comes up behind
+        // whatever has focus (same fix as showOnboarding).
+        NSApp.activate(ignoringOtherApps: true)
         hud?.showWindow(nil)
+        hud?.window?.makeKeyAndOrderFront(nil)
+        if !isOn {
+            // Without this the HUD just sits blank until the cursor is enabled.
+            hud?.showDisabledState()
+        }
     }
 
     // MARK: Pipeline lifecycle
@@ -239,6 +247,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         recognizer = nil
         coordinator = nil
         isOn = false
+        hud?.showDisabledState()
     }
 
     /// While the app is enabled, poll TCC every 10 seconds. macOS doesn't notify

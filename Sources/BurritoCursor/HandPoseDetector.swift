@@ -23,6 +23,12 @@ final class HandPoseDetector {
     private var fpsEMA: Double = 0
     private var latencyEMA: Double = 0
 
+    /// Vision rate cap. Hand tracking at 15fps is plenty for cursor control
+    /// and roughly halves CPU vs unthrottled. Without this on slower hardware
+    /// the app can saturate a core.
+    private let minVisionIntervalSec: Double = 1.0 / 15.0
+    private var lastVisionTime: CFTimeInterval = 0
+
     init() {
         request = VNDetectHumanHandPoseRequest()
         request.maximumHandCount = 1
@@ -62,16 +68,24 @@ final class HandPoseDetector {
                 self.pendingBuffer = nil
                 self.lock.unlock()
 
+                // Rate-cap: skip this frame if we processed one too recently.
+                // Without the cap, on slower hardware Vision can saturate a CPU core.
+                let now = CACurrentMediaTime()
+                if now - self.lastVisionTime < self.minVisionIntervalSec {
+                    continue
+                }
+                self.lastVisionTime = now
+
                 let visionStart = CACurrentMediaTime()
                 let obs = self.runVision(on: buf, timestamp: ts)
                 let visionElapsedMs = (CACurrentMediaTime() - visionStart) * 1000
 
-                let now = CACurrentMediaTime()
+                let frameTime = CACurrentMediaTime()
                 if let prev = self.lastFrameTime {
-                    let inst = 1.0 / max(now - prev, 1e-6)
+                    let inst = 1.0 / max(frameTime - prev, 1e-6)
                     self.fpsEMA = self.fpsEMA == 0 ? inst : (0.9 * self.fpsEMA + 0.1 * inst)
                 }
-                self.lastFrameTime = now
+                self.lastFrameTime = frameTime
                 self.latencyEMA = self.latencyEMA == 0
                     ? visionElapsedMs
                     : (0.9 * self.latencyEMA + 0.1 * visionElapsedMs)
