@@ -47,10 +47,12 @@ final class DebugHUD: NSWindowController {
         super.close()
     }
 
-    /// Bounded transition log — last N transitions surfaced in the HUD.
-    private var transitions: [(t: Double, label: String)] = []
+    /// Bounded transition log — last N kind-level transitions surfaced in the HUD.
+    private var transitions: [(t: Double, kind: String)] = []
     private let transitionLimit = 6
-    private var lastStateLabel: String?
+    /// We track the *kind* of the previous state (not its full label) so that
+    /// per-frame scroll delta changes don't flood the transition log.
+    private var lastStateKind: String?
     private var sessionStart: Double?
 
     /// Called whenever a new GestureState is emitted. Cheap; safe to call every frame.
@@ -62,20 +64,21 @@ final class DebugHUD: NSWindowController {
         landmarkCount: Int,
         config: Config
     ) {
-        let label = Self.label(for: state)
+        let kind = Self.kindLabel(for: state)
+        let display = Self.label(for: state)
 
         if sessionStart == nil { sessionStart = CACurrentMediaTime() }
-        if label != lastStateLabel {
+        if kind != lastStateKind {
             let t = CACurrentMediaTime() - (sessionStart ?? 0)
-            transitions.append((t, label))
+            transitions.append((t, kind))
             if transitions.count > transitionLimit {
                 transitions.removeFirst(transitions.count - transitionLimit)
             }
-            lastStateLabel = label
+            lastStateKind = kind
         }
 
         let recentLines = transitions
-            .map { String(format: "  [%5.2fs] %@", $0.t, $0.label) }
+            .map { String(format: "  [%5.2fs] %@", $0.t, $0.kind) }
             .joined(separator: "\n")
 
         let text = String(
@@ -97,7 +100,7 @@ final class DebugHUD: NSWindowController {
               click enter:   %.0f°
               click exit:    %.0f°
             """,
-            label, frameRateHz, visionLatencyMs, minConfidence, landmarkCount,
+            display, frameRateHz, visionLatencyMs, minConfidence, landmarkCount,
             recentLines.isEmpty ? "  (none yet)" : recentLines,
             config.sensitivity,
             config.deadzoneNormalized,
@@ -111,6 +114,20 @@ final class DebugHUD: NSWindowController {
         }
     }
 
+    /// Stable identity of the state — does NOT change frame-to-frame for scrolling.
+    /// Used for the transition log so per-frame scroll deltas don't flood it.
+    private static func kindLabel(for state: GestureState) -> String {
+        switch state {
+        case .idle: return "idle"
+        case .pointing: return "pointing"
+        case .clickLatched: return "clickLatched"
+        case .clicking: return "clicking"
+        case .scrolling: return "scrolling"
+        case .degraded: return "degraded"
+        }
+    }
+
+    /// Full display label, including dynamic values like scroll delta.
     private static func label(for state: GestureState) -> String {
         switch state {
         case .idle: return "idle"
