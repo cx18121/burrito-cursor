@@ -49,34 +49,14 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     private func installStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let btn = statusItem.button {
-            btn.target = self
-            btn.action = #selector(statusItemClicked)
-            btn.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        }
         refreshStatusItem()
     }
 
     private func refreshStatusItem() {
+        // Title changes also act as a state indicator: ✋ = off, 🤚 = on.
+        // Plus the menu's "Enable / Disable" item updates so users can see state.
         statusItem.button?.title = isOn ? "🤚" : "✋"
-        // Intentionally no statusItem.menu assignment — we pop it up explicitly
-        // on right-click so left-click can toggle without the menu appearing.
-    }
-
-    @objc private func statusItemClicked() {
-        let evt = NSApp.currentEvent
-        let isRightClick = evt?.type == .rightMouseUp
-            || (evt?.modifierFlags.contains(.control) ?? false)
-        if isRightClick {
-            // Pop menu directly at the button's screen location — no need to
-            // attach/detach via NSStatusItem.menu.
-            let menu = buildMenu()
-            guard let btn = statusItem.button else { return }
-            let origin = NSPoint(x: 0, y: btn.bounds.height + 4)
-            menu.popUp(positioning: nil, at: origin, in: btn)
-        } else {
-            toggle()
-        }
+        statusItem.menu = buildMenu()
     }
 
     private func buildMenu() -> NSMenu {
