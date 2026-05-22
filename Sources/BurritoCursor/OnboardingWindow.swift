@@ -16,14 +16,20 @@ final class OnboardingWindow: NSWindowController {
     private var detector: HandPoseDetector?
     private let ciContext = CIContext()
 
-    /// True once we've received at least one camera frame. AppController uses this
-    /// to decide whether to mark first-run as complete — if camera was never seen,
-    /// onboarding should re-open on the next launch.
-    private(set) var capturedAtLeastOneFrame = false
-
     /// Most recent observation, used to overlay landmarks on the preview.
+    /// Lock-guarded — written from capture queue, read on main during draw.
     private var latestObservation: HandObservation?
     private let observationLock = NSLock()
+
+    /// Lock-guarded "have we seen at least one frame" flag. Written from the
+    /// camera capture queue; read from main when the window closes.
+    private var _capturedAtLeastOneFrame = false
+    /// True once we've received at least one camera frame. AppController reads
+    /// this to decide whether to mark first-run as complete.
+    var capturedAtLeastOneFrame: Bool {
+        observationLock.lock(); defer { observationLock.unlock() }
+        return _capturedAtLeastOneFrame
+    }
 
     convenience init() {
         let win = NSWindow(
@@ -87,9 +93,12 @@ final class OnboardingWindow: NSWindowController {
         }
         do {
             try cam.start { [weak self] buf, ts in
-                self?.capturedAtLeastOneFrame = true
+                guard let self else { return }
+                self.observationLock.lock()
+                self._capturedAtLeastOneFrame = true
+                self.observationLock.unlock()
                 det.submit(buffer: buf, timestamp: ts)
-                self?.updatePreview(buf)
+                self.updatePreview(buf)
             }
             self.camera = cam
             self.detector = det
@@ -105,25 +114,27 @@ final class OnboardingWindow: NSWindowController {
     }
 
     private func updatePreview(_ pb: CVPixelBuffer) {
+        // CoreImage is thread-safe; do the GPU extraction off-main.
         let ci = CIImage(cvPixelBuffer: pb)
         guard let cg = ciContext.createCGImage(ci, from: ci.extent) else { return }
         let baseSize = NSSize(width: ci.extent.width, height: ci.extent.height)
-        let baseImage = NSImage(cgImage: cg, size: baseSize)
 
         observationLock.lock()
         let obs = latestObservation
         observationLock.unlock()
 
-        let composed = NSImage(size: baseSize)
-        composed.lockFocus()
-        baseImage.draw(in: NSRect(origin: .zero, size: baseSize))
-        if let obs, !obs.points.isEmpty {
-            OnboardingWindow.drawLandmarks(obs, in: baseSize)
-        }
-        composed.unlockFocus()
-
+        // AppKit drawing (lockFocus, NSBezierPath, NSColor) MUST run on main.
         DispatchQueue.main.async { [weak self] in
-            self?.previewView.image = composed
+            guard let self else { return }
+            let baseImage = NSImage(cgImage: cg, size: baseSize)
+            let composed = NSImage(size: baseSize)
+            composed.lockFocus()
+            baseImage.draw(in: NSRect(origin: .zero, size: baseSize))
+            if let obs, !obs.points.isEmpty {
+                OnboardingWindow.drawLandmarks(obs, in: baseSize)
+            }
+            composed.unlockFocus()
+            self.previewView.image = composed
         }
     }
 

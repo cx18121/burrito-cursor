@@ -23,6 +23,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var onboarding: OnboardingWindow?
     private var hud: DebugHUD?
     private var signalSources: [DispatchSourceSignal] = []
+    private var permissionPollTimer: Timer?
 
     // MARK: NSApplicationDelegate
 
@@ -58,8 +59,8 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     private func refreshStatusItem() {
         statusItem.button?.title = isOn ? "🤚" : "✋"
-        // Menu is set dynamically on right-click only — don't keep it attached
-        // or left-clicks will pop it up too.
+        // Intentionally no statusItem.menu assignment — we pop it up explicitly
+        // on right-click so left-click can toggle without the menu appearing.
     }
 
     @objc private func statusItemClicked() {
@@ -67,10 +68,12 @@ final class AppController: NSObject, NSApplicationDelegate {
         let isRightClick = evt?.type == .rightMouseUp
             || (evt?.modifierFlags.contains(.control) ?? false)
         if isRightClick {
-            // Temporarily attach the menu so the system pops it up at the button.
-            statusItem.menu = buildMenu()
-            statusItem.button?.performClick(nil)
-            statusItem.menu = nil
+            // Pop menu directly at the button's screen location — no need to
+            // attach/detach via NSStatusItem.menu.
+            let menu = buildMenu()
+            guard let btn = statusItem.button else { return }
+            let origin = NSPoint(x: 0, y: btn.bounds.height + 4)
+            menu.popUp(positioning: nil, at: origin, in: btn)
         } else {
             toggle()
         }
@@ -152,17 +155,21 @@ final class AppController: NSObject, NSApplicationDelegate {
         coord.cursorController = CursorController(config: config)
         coord.scrollController = ScrollController(config: config)
 
+        let cfg = config
         det.setHandler { [weak self, weak coord, weak rec] obs, stats in
             guard let coord, let rec else { return }
             let state = rec.step(obs ?? HandObservation(timestampSec: 0, points: [:]))
             let conf = obs?.minConfidence ?? 0.0
+            let landmarks = obs?.points.count ?? 0
             DispatchQueue.main.async {
                 coord.apply(state: state)
                 self?.hud?.update(
                     state: state,
                     frameRateHz: stats.frameRateHz,
                     visionLatencyMs: stats.visionLatencyMs,
-                    minConfidence: conf
+                    minConfidence: conf,
+                    landmarkCount: landmarks,
+                    config: cfg
                 )
             }
         }
@@ -193,9 +200,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         self.recognizer = rec
         self.coordinator = coord
         self.isOn = true
+        startPermissionPolling()
     }
 
     private func teardown() {
+        stopPermissionPolling()
         coordinator?.forceRelease()
         camera?.stop()
         camera = nil
@@ -203,6 +212,29 @@ final class AppController: NSObject, NSApplicationDelegate {
         recognizer = nil
         coordinator = nil
         isOn = false
+    }
+
+    /// While the app is enabled, poll TCC every 10 seconds. macOS doesn't notify
+    /// when permissions are revoked, so polling is the only way to catch a mid-session
+    /// revocation. 10s is cheap (just an API call) and bounds the user's surprise.
+    private func startPermissionPolling() {
+        permissionPollTimer?.invalidate()
+        permissionPollTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            if self.isOn && !self.permissionsStillGranted() {
+                self.teardown()
+                self.refreshStatusItem()
+                self.showAlert(
+                    title: "Permission revoked",
+                    message: "Burrito Cursor has been disabled because Camera or Accessibility access is no longer granted."
+                )
+            }
+        }
+    }
+
+    private func stopPermissionPolling() {
+        permissionPollTimer?.invalidate()
+        permissionPollTimer = nil
     }
 
     // MARK: Permissions

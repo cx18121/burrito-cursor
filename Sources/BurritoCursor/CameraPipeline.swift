@@ -4,53 +4,97 @@ import CoreVideo
 final class CameraPipeline: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private let session = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
-    private let queue = DispatchQueue(label: "burritocursor.camera", qos: .userInitiated)
-    private var handler: ((CVPixelBuffer, CMTime) -> Void)?
-    private var errorHandler: ((Error?) -> Void)?
 
-    /// Called on any AVCaptureSession runtime error or interruption. AppController
-    /// uses this to tear down promptly instead of silently dropping frames.
+    /// Serial queue for ALL AVCaptureSession lifecycle ops (begin/commit configuration,
+    /// add/remove inputs/outputs, startRunning, stopRunning). Prevents races on
+    /// rapid toggle and onboarding-restart paths.
+    private let sessionQueue = DispatchQueue(label: "burritocursor.camera.session", qos: .userInitiated)
+
+    /// Capture delegate queue (frame callbacks land here).
+    private let captureQueue = DispatchQueue(label: "burritocursor.camera.capture", qos: .userInitiated)
+
+    private let lock = NSLock()
+    private var _handler: ((CVPixelBuffer, CMTime) -> Void)?
+    private var _errorHandler: ((Error?) -> Void)?
+
+    /// Called on AVCaptureSession runtime error or interruption.
     func setErrorHandler(_ h: @escaping (Error?) -> Void) {
-        errorHandler = h
+        lock.lock(); _errorHandler = h; lock.unlock()
+    }
+
+    private func currentHandler() -> ((CVPixelBuffer, CMTime) -> Void)? {
+        lock.lock(); defer { lock.unlock() }
+        return _handler
+    }
+
+    private func currentErrorHandler() -> ((Error?) -> Void)? {
+        lock.lock(); defer { lock.unlock() }
+        return _errorHandler
     }
 
     func start(onFrame: @escaping (CVPixelBuffer, CMTime) -> Void) throws {
-        self.handler = onFrame
-        session.beginConfiguration()
-        session.sessionPreset = .vga640x480
-
+        // Synchronous validation — fail fast if camera is missing.
         guard let device = AVCaptureDevice.default(for: .video) else {
-            session.commitConfiguration()
             throw NSError(domain: "BurritoCursor", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "No camera device available"])
         }
         let input = try AVCaptureDeviceInput(device: device)
-        guard session.canAddInput(input) else {
+
+        lock.lock(); _handler = onFrame; lock.unlock()
+
+        // All session mutation + startRunning happens serially on sessionQueue.
+        sessionQueue.async { [self] in
+            session.beginConfiguration()
+            session.sessionPreset = .vga640x480
+
+            if session.canAddInput(input) {
+                session.addInput(input)
+            } else {
+                session.commitConfiguration()
+                DispatchQueue.main.async { [weak self] in
+                    self?.currentErrorHandler()?(NSError(
+                        domain: "BurritoCursor", code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: "Cannot add camera input"]
+                    ))
+                }
+                return
+            }
+
+            videoOutput.alwaysDiscardsLateVideoFrames = true
+            videoOutput.videoSettings = [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+            ]
+            videoOutput.setSampleBufferDelegate(self, queue: captureQueue)
+            if session.canAddOutput(videoOutput) {
+                session.addOutput(videoOutput)
+            } else {
+                session.commitConfiguration()
+                DispatchQueue.main.async { [weak self] in
+                    self?.currentErrorHandler()?(NSError(
+                        domain: "BurritoCursor", code: 3,
+                        userInfo: [NSLocalizedDescriptionKey: "Cannot add video output"]
+                    ))
+                }
+                return
+            }
             session.commitConfiguration()
-            throw NSError(domain: "BurritoCursor", code: 2,
-                          userInfo: [NSLocalizedDescriptionKey: "Cannot add camera input"])
-        }
-        session.addInput(input)
 
-        videoOutput.alwaysDiscardsLateVideoFrames = true
-        videoOutput.videoSettings = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-        ]
-        videoOutput.setSampleBufferDelegate(self, queue: queue)
-        guard session.canAddOutput(videoOutput) else {
-            session.commitConfiguration()
-            throw NSError(domain: "BurritoCursor", code: 3,
-                          userInfo: [NSLocalizedDescriptionKey: "Cannot add video output"])
-        }
-        session.addOutput(videoOutput)
-
-        session.commitConfiguration()
-
-        installSessionObservers()
-
-        // startRunning blocks while the camera spins up — push off the main thread.
-        DispatchQueue.global(qos: .userInitiated).async { [session] in
+            self.installSessionObservers()
             session.startRunning()
+        }
+    }
+
+    func stop() {
+        // Clear handlers immediately so any in-flight capture frame is dropped.
+        lock.lock(); _handler = nil; _errorHandler = nil; lock.unlock()
+
+        sessionQueue.async { [self] in
+            NotificationCenter.default.removeObserver(self)
+            session.stopRunning()
+            session.beginConfiguration()
+            for input in session.inputs { session.removeInput(input) }
+            for output in session.outputs { session.removeOutput(output) }
+            session.commitConfiguration()
         }
     }
 
@@ -69,26 +113,12 @@ final class CameraPipeline: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     @objc private func onSessionRuntimeError(_ note: Notification) {
         let err = note.userInfo?[AVCaptureSessionErrorKey] as? Error
         NSLog("BurritoCursor: capture session runtime error: %@", err?.localizedDescription ?? "unknown")
-        DispatchQueue.main.async { [weak self] in self?.errorHandler?(err) }
+        DispatchQueue.main.async { [weak self] in self?.currentErrorHandler()?(err) }
     }
 
     @objc private func onSessionInterrupted(_ note: Notification) {
         NSLog("BurritoCursor: capture session interrupted")
-        DispatchQueue.main.async { [weak self] in self?.errorHandler?(nil) }
-    }
-
-    func stop() {
-        NotificationCenter.default.removeObserver(self)
-        // Tear down on a background queue too; stopRunning can block briefly.
-        DispatchQueue.global(qos: .userInitiated).async { [session] in
-            session.stopRunning()
-            session.beginConfiguration()
-            for input in session.inputs { session.removeInput(input) }
-            for output in session.outputs { session.removeOutput(output) }
-            session.commitConfiguration()
-        }
-        handler = nil
-        errorHandler = nil
+        DispatchQueue.main.async { [weak self] in self?.currentErrorHandler()?(nil) }
     }
 
     func captureOutput(_ output: AVCaptureOutput,
@@ -96,6 +126,6 @@ final class CameraPipeline: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
                        from connection: AVCaptureConnection) {
         guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let t = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        handler?(pb, t)
+        currentHandler()?(pb, t)
     }
 }

@@ -156,16 +156,27 @@ final class GestureRecognizerTests: XCTestCase {
         }
     }
 
-    func testAllFingersExtendedDoesNotLatch() {
+    /// Targets the original phantom-click bug directly: index bent into the click
+    /// window (130° → satisfies the old "idx < clickExitAngleDeg" condition) but
+    /// the other fingers are NOT curled (160° each). Under the original buggy code
+    /// this would latch and then confirm as a click. The fix gates on others-curled,
+    /// so this must stay in `.pointing` (well — actually `.idle`, since the hand
+    /// pose no longer matches `.pointing`).
+    func testIndexBentWithOthersExtendedDoesNotLatch() {
         let r = GestureRecognizer(config: .defaults)
         for i in 0..<3 { _ = r.step(pointingHand(t: Double(i)/30)) }
-        // Wave hand — all fingers extended (a "stop" gesture)
-        let wave = HandBuilder.makeHand(
-            indexBendDeg: 180, middleBendDeg: 180, ringBendDeg: 180, pinkyBendDeg: 180,
-            timestamp: 3.0/30
-        )
-        let state = r.step(wave)
-        if case .clickLatched = state { XCTFail("Open-hand wave must not latch a click") }
+        // Index bent to 130° but middle/ring/pinky still extended — looks like
+        // a goofy splayed claw, not a click bend.
+        for i in 3..<8 {
+            let claw = HandBuilder.makeHand(
+                indexBendDeg: 130,
+                middleBendDeg: 165, ringBendDeg: 165, pinkyBendDeg: 165,
+                timestamp: Double(i)/30
+            )
+            let state = r.step(claw)
+            if case .clickLatched = state { XCTFail("Must not latch when other fingers aren't curled") }
+            if case .clicking = state { XCTFail("Must not click when other fingers aren't curled") }
+        }
     }
 
     // MARK: - Scroll
