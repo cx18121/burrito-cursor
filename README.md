@@ -1,6 +1,6 @@
-# 🌯 Burrito Cursor
+# 🌯 burrito cursor
 
-Control your Mac cursor with hand gestures via the webcam — for when your hands are messy from eating.
+Control your Mac cursor with hand gestures via the webcam, for when your hands are messy from eating.
 
 ## Install
 
@@ -20,4 +20,4 @@ Drop the pose any time to freeze the cursor.
 
 ---
 
-Native macOS, Swift + Vision framework. Design spec and full architecture in [`docs/superpowers/`](docs/superpowers/).
+Native macOS, Swift + Vision framework.
