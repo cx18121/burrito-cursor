@@ -12,16 +12,11 @@ public struct Config: Equatable {
     public var debounceEntryFrames: Int
     public var debounceExitFrames: Int
 
-    /// Click latch fires when index curl ratio crosses this. Should be just
-    /// above PoseClassifier.extendedCurlRatioMax — the moment the finger
-    /// leaves the "fully extended" region.
-    public var clickStartCurlRatio: Double
-    /// Click confirms when index curl ratio has stayed above this for
-    /// `debounceEntryFrames` frames in a row.
-    public var clickConfirmCurlRatio: Double
-    /// Click releases (and latch abandons) when index curl ratio drops below
-    /// this — finger returned to extended.
-    public var clickReleaseCurlRatio: Double
+    /// Pinch detection — Apple Vision Pro "select" gesture.
+    /// `pinchStart` < `pinchEnd` enforces hysteresis to avoid flicker at the boundary.
+    /// Values are |thumbTip − indexTip| normalized by palm scale.
+    public var pinchStartDistance: Double
+    public var pinchEndDistance: Double
 
     public var degradedConfidenceThreshold: Double
     public var handJumpRejectionFraction: Double
@@ -34,9 +29,8 @@ public struct Config: Equatable {
         deadzoneNormalized: 0.005,
         debounceEntryFrames: 2,
         debounceExitFrames: 1,
-        clickStartCurlRatio: 1.15,
-        clickConfirmCurlRatio: 1.30,
-        clickReleaseCurlRatio: 1.10,
+        pinchStartDistance: 0.18,
+        pinchEndDistance: 0.30,
         degradedConfidenceThreshold: 0.3,
         handJumpRejectionFraction: 0.25,
         scrollSensitivity: 1.0,
@@ -58,14 +52,11 @@ public struct Config: Equatable {
         if let v = store.object(forKey: "debounceExitFrames") as? Int, (1...30).contains(v) {
             c.debounceExitFrames = v
         }
-        if let v = store.object(forKey: "clickStartCurlRatio") as? Double, (1.0...3.0).contains(v) {
-            c.clickStartCurlRatio = v
+        if let v = store.object(forKey: "pinchStartDistance") as? Double, (0.01...1.0).contains(v) {
+            c.pinchStartDistance = v
         }
-        if let v = store.object(forKey: "clickConfirmCurlRatio") as? Double, (1.0...3.0).contains(v) {
-            c.clickConfirmCurlRatio = v
-        }
-        if let v = store.object(forKey: "clickReleaseCurlRatio") as? Double, (1.0...3.0).contains(v) {
-            c.clickReleaseCurlRatio = v
+        if let v = store.object(forKey: "pinchEndDistance") as? Double, (0.01...1.0).contains(v) {
+            c.pinchEndDistance = v
         }
         if let v = store.object(forKey: "degradedConfidenceThreshold") as? Double, (0.0...1.0).contains(v) {
             c.degradedConfidenceThreshold = v
@@ -82,12 +73,10 @@ public struct Config: Equatable {
         if let v = store.object(forKey: "oneEuroMinCutoff") as? Double, (0.01...100.0).contains(v) {
             c.oneEuroMinCutoff = v
         }
-        // Invariant: release threshold <= start threshold <= confirm threshold
-        if !(c.clickReleaseCurlRatio <= c.clickStartCurlRatio
-             && c.clickStartCurlRatio <= c.clickConfirmCurlRatio) {
-            c.clickStartCurlRatio = Config.defaults.clickStartCurlRatio
-            c.clickConfirmCurlRatio = Config.defaults.clickConfirmCurlRatio
-            c.clickReleaseCurlRatio = Config.defaults.clickReleaseCurlRatio
+        // Invariant: pinch start must be strictly less than pinch end (hysteresis).
+        if c.pinchStartDistance >= c.pinchEndDistance {
+            c.pinchStartDistance = Config.defaults.pinchStartDistance
+            c.pinchEndDistance = Config.defaults.pinchEndDistance
         }
         return c
     }

@@ -19,10 +19,9 @@ final class InputCoordinator {
         case .pointing(let p):
             forceReleaseLocked()
             cursorController?.handlePointing(at: p)
-        case .clickLatched(let p):
-            forceReleaseLocked()
-            cursorController?.freeze(at: p)
         case .clicking(let p):
+            // Pinch is binary — emit mouseDown on first .clicking frame, hold it
+            // until we exit .clicking (which fires mouseUp via forceReleaseLocked).
             if !mouseDownOutstanding {
                 cursorController?.mouseDown(at: p)
                 mouseDownOutstanding = true

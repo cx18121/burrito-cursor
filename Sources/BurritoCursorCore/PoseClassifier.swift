@@ -1,39 +1,36 @@
 import Foundation
 
-/// Multiple per-frame signals computed for one finger. The classifier combines
-/// these into `isExtended`/`isCurled` decisions; the recognizer also reads
-/// `curlRatio` directly for click-state transitions.
+/// Per-finger signals computed each frame. The classifier combines these into
+/// `isExtended` decisions; the recognizer reads pose `kind` and `pinchDistance`.
 public struct FingerSignals: Equatable {
-    /// 2D angle at the PIP joint (MCP → PIP → TIP). 180° = straight, 0° = folded.
-    /// Kept for HUD display and legacy callers; classification no longer uses this
-    /// as the primary signal because 2D angles foreshorten badly when fingers
-    /// point toward/away from the camera.
+    /// 2D angle at the PIP joint (MCP → PIP → TIP). 180° = straight. Display-only.
     public let angleDeg: Double
-
-    /// Sum of segment lengths along the finger divided by the straight-line
-    /// MCP→TIP distance. 1.0 = straight, ∞ = fully folded back. This is the
-    /// **primary** classification signal — it's orientation-invariant in 2D.
+    /// Sum of segment lengths / straight-line distance. 1.0 = straight, ∞ = folded.
+    /// Primary classification signal — orientation-invariant in 2D.
     public let curlRatio: Double
-
-    /// |TIP − MCP| / palm-scale. Lets you reason about absolute finger
-    /// extension relative to the hand size. Secondary signal, mostly for HUD.
+    /// |TIP − MCP| / palmScale. Secondary signal, HUD display.
     public let chordNormalized: Double
 }
 
 public struct ClassifiedPose: Equatable {
     public enum Kind: Equatable {
-        case pointing       // index extended, middle/ring/pinky curled
-        case scrolling      // index + middle extended, ring/pinky curled
-        case indexBent      // others curled, index neither fully extended nor fully curled — click candidate (display label)
+        case pointing   // index extended, middle/ring/pinky NOT extended → cursor mode
+        case openPalm   // all 5 fingers extended (incl. thumb) → scroll mode
         case unknown
     }
     public let kind: Kind
+    public let thumb: FingerSignals
     public let index: FingerSignals
     public let middle: FingerSignals
     public let ring: FingerSignals
     public let pinky: FingerSignals
 
-    // Legacy accessors so callers and tests don't break.
+    /// Thumb-tip to index-tip distance normalized by palm scale. Drives click via
+    /// pinch — sub-threshold = pinching = click. Independent of pose `kind`, but
+    /// only meaningful while in `.pointing`.
+    public let pinchDistance: Double
+
+    // Legacy 2D-angle accessors so existing HUD code keeps working.
     public var indexAngleDeg: Double { index.angleDeg }
     public var middleAngleDeg: Double { middle.angleDeg }
     public var ringAngleDeg: Double { ring.angleDeg }
@@ -41,68 +38,77 @@ public struct ClassifiedPose: Equatable {
 }
 
 public enum PoseClassifier {
-    /// Curl ratio below this → finger is extended (nearly straight).
+    /// curlRatio below this → finger is straight (extended).
     public static let extendedCurlRatioMax = 1.10
-    /// Curl ratio above this → finger is curled (folded). Above this we treat
-    /// the finger as "part of a fist," not a click candidate.
+    /// curlRatio above this → finger is folded (curled). Used by isCurled().
     public static let curledCurlRatioMin = 1.60
 
-    // Legacy angle thresholds — still exposed for callers that haven't moved
-    // off the angle-based API. Not used internally by classify().
+    // Legacy angle thresholds retained for backwards-compatible callers.
     public static let extendedAngleDeg = 150.0
     public static let curledAngleDeg = 120.0
     public static let clickRawThresholdDeg = 145.0
 
     public static func classify(_ obs: HandObservation) -> ClassifiedPose {
         let palmScale = computePalmScale(obs)
+        let thumb = signals(mcp: .thumbCMC, pip: .thumbMP, dip: .thumbIP, tip: .thumbTip, obs: obs, palmScale: palmScale)
         let index = signals(mcp: .indexMCP,  pip: .indexPIP,  dip: .indexDIP,  tip: .indexTip,  obs: obs, palmScale: palmScale)
         let middle = signals(mcp: .middleMCP, pip: .middlePIP, dip: .middleDIP, tip: .middleTip, obs: obs, palmScale: palmScale)
         let ring = signals(mcp: .ringMCP,   pip: .ringPIP,   dip: .ringDIP,   tip: .ringTip,   obs: obs, palmScale: palmScale)
         let pinky = signals(mcp: .pinkyMCP,  pip: .pinkyPIP,  dip: .pinkyDIP,  tip: .pinkyTip,  obs: obs, palmScale: palmScale)
 
+        let pinchDistance = pinchDistanceNormalized(obs: obs, palmScale: palmScale)
+
         let indexExt = isExtended(index)
-        let indexCurled = isCurled(index)
         let middleExt = isExtended(middle)
-        let middleCurled = isCurled(middle)
-        let ringCurled = isCurled(ring)
-        let pinkyCurled = isCurled(pinky)
+        let ringExt = isExtended(ring)
+        let pinkyExt = isExtended(pinky)
+        let thumbExt = isExtended(thumb)
 
         let kind: ClassifiedPose.Kind
-        if indexExt, middleCurled, ringCurled, pinkyCurled {
+        if thumbExt, indexExt, middleExt, ringExt, pinkyExt {
+            // All five extended → open palm → scroll mode.
+            kind = .openPalm
+        } else if indexExt, !middleExt, !ringExt, !pinkyExt {
+            // Only the index is clearly extended; other fingers can be curled
+            // OR partially bent — anything except "fully extended" is acceptable.
+            // This is much more forgiving than the old "all others must be curled"
+            // requirement.
             kind = .pointing
-        } else if indexExt, middleExt, ringCurled, pinkyCurled {
-            kind = .scrolling
-        } else if !indexExt, !indexCurled, middleCurled, ringCurled, pinkyCurled {
-            // Index in the transition zone (bent but not fully curled), others
-            // stay curled — true click candidate. Fully-curled fists fall to
-            // .unknown instead, so they don't trigger spurious "click" labels.
-            kind = .indexBent
         } else {
             kind = .unknown
         }
-        return ClassifiedPose(kind: kind, index: index, middle: middle, ring: ring, pinky: pinky)
+        return ClassifiedPose(
+            kind: kind,
+            thumb: thumb, index: index, middle: middle, ring: ring, pinky: pinky,
+            pinchDistance: pinchDistance
+        )
     }
 
-    /// True if the finger reads as nearly straight.
     public static func isExtended(_ s: FingerSignals) -> Bool {
         s.curlRatio < extendedCurlRatioMax
     }
-
-    /// True if the finger reads as fully folded back (fist-like).
     public static func isCurled(_ s: FingerSignals) -> Bool {
         s.curlRatio > curledCurlRatioMin
+    }
+
+    // MARK: - Pinch
+
+    /// Returns `|thumbTip − indexTip| / palmScale`. ~0.4 for a relaxed hand,
+    /// near 0 when pinched (Apple Vision Pro "select" gesture).
+    public static func pinchDistanceNormalized(obs: HandObservation, palmScale: Double) -> Double {
+        guard let thumbTip = obs.points[.thumbTip],
+              let indexTip = obs.points[.indexTip] else { return .infinity }
+        let d = distance(thumbTip, indexTip)
+        return palmScale > 1e-6 ? d / palmScale : .infinity
     }
 
     // MARK: - Geometry
 
     private static func computePalmScale(_ obs: HandObservation) -> Double {
-        // Primary: wrist → middleMCP distance (palm length). Stable across
-        // rotations where indexMCP and pinkyMCP can collapse onto each other.
         if let w = obs.points[.wrist], let m = obs.points[.middleMCP] {
             let d = distance(w, m)
             if d > 1e-3 { return d }
         }
-        // Fallback: indexMCP → pinkyMCP (palm width)
         if let i = obs.points[.indexMCP], let p = obs.points[.pinkyMCP] {
             let d = distance(i, p)
             if d > 1e-3 { return d }
@@ -117,8 +123,6 @@ public enum PoseClassifier {
         guard let m = obs.points[mcp], let p = obs.points[pip], let t = obs.points[tip] else {
             return FingerSignals(angleDeg: 0, curlRatio: 1.0, chordNormalized: 0)
         }
-        // Path: sum of segments MCP→PIP[→DIP]→TIP. Uses 3 segments if DIP is
-        // present (real Vision data), 2 otherwise (synthetic test data).
         var path = distance(m, p) + distance(p, t)
         if let d = obs.points[dip] {
             path = distance(m, p) + distance(p, d) + distance(d, t)
@@ -148,7 +152,6 @@ public enum PoseClassifier {
         return acos(cosA) * 180.0 / .pi
     }
 
-    /// Legacy public API for the 2D angle on a single finger.
     public static func fingerAngleDeg(
         _ obs: HandObservation,
         mcp: JointName, pip: JointName, tip: JointName

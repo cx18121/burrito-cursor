@@ -7,7 +7,7 @@ final class TraceReplayTests: XCTestCase {
         XCTAssertTrue(kinds.contains("pointing"), "Trace should reach .pointing")
         XCTAssertTrue(kinds.contains("clicking"), "Trace should reach .clicking")
         let clickIdx = kinds.firstIndex(of: "clicking")!
-        let afterClick = kinds[clickIdx...].drop(while: { $0 == "clicking" || $0 == "clickLatched" })
+        let afterClick = kinds[clickIdx...].drop(while: { $0 == "clicking" })
         XCTAssertEqual(afterClick.first, "pointing", "After clicking the state should return to .pointing")
     }
 
@@ -43,7 +43,6 @@ final class TraceReplayTests: XCTestCase {
         switch s {
         case .idle: return "idle"
         case .pointing: return "pointing"
-        case .clickLatched: return "clickLatched"
         case .clicking: return "clicking"
         case .scrolling: return "scrolling"
         case .degraded: return "degraded"

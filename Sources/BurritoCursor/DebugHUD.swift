@@ -105,31 +105,35 @@ final class DebugHUD: NSWindowController {
 
         let rawText: String
         let curlText: String
+        let pinchText: String
         if let p = rawPose {
             rawText = String(
-                format: "%@   I:%3d°  M:%3d°  R:%3d°  P:%3d°",
+                format: "%@   T:%.2f  I:%.2f  M:%.2f  R:%.2f  P:%.2f",
                 String(describing: p.kind),
-                Int(p.indexAngleDeg),
-                Int(p.middleAngleDeg),
-                Int(p.ringAngleDeg),
-                Int(p.pinkyAngleDeg)
-            )
-            curlText = String(
-                format: "curl:    I:%.2f  M:%.2f  R:%.2f  P:%.2f",
+                p.thumb.curlRatio,
                 p.index.curlRatio,
                 p.middle.curlRatio,
                 p.ring.curlRatio,
                 p.pinky.curlRatio
             )
+            curlText = String(
+                format: "angles:  T:%3d°  I:%3d°  M:%3d°",
+                Int(p.thumb.angleDeg),
+                Int(p.indexAngleDeg),
+                Int(p.middleAngleDeg)
+            )
+            pinchText = String(format: "pinch:   %.2f", p.pinchDistance)
         } else {
             rawText = "(no hand visible)"
             curlText = ""
+            pinchText = ""
         }
 
         let text = String(
             format: """
             state:        %@
             raw frame:    %@
+            %@
             %@
             fps:          %.1f
             vision lat:   %.1f ms
@@ -143,18 +147,16 @@ final class DebugHUD: NSWindowController {
               sensitivity:   %.2f
               deadzone:      %.4f
               debounce in:   %d
-              click start:   %.2f
-              click confirm: %.2f
-              click release: %.2f
+              pinch start:   %.2f
+              pinch end:     %.2f
             """,
-            display, rawText, curlText, frameRateHz, visionLatencyMs, minConfidence, landmarkCount,
+            display, rawText, curlText, pinchText, frameRateHz, visionLatencyMs, minConfidence, landmarkCount,
             recentLines.isEmpty ? "  (none yet)" : recentLines,
             config.sensitivity,
             config.deadzoneNormalized,
             config.debounceEntryFrames,
-            config.clickStartCurlRatio,
-            config.clickConfirmCurlRatio,
-            config.clickReleaseCurlRatio
+            config.pinchStartDistance,
+            config.pinchEndDistance
         )
         DispatchQueue.main.async { [textView] in
             textView.string = text
@@ -167,7 +169,6 @@ final class DebugHUD: NSWindowController {
         switch state {
         case .idle: return "idle"
         case .pointing: return "pointing"
-        case .clickLatched: return "clickLatched"
         case .clicking: return "clicking"
         case .scrolling: return "scrolling"
         case .degraded: return "degraded"
@@ -179,7 +180,6 @@ final class DebugHUD: NSWindowController {
         switch state {
         case .idle: return "idle"
         case .pointing: return "pointing"
-        case .clickLatched: return "clickLatched"
         case .clicking: return "clicking"
         case .scrolling(let dy, _): return String(format: "scrolling(Δy=%.3f)", dy)
         case .degraded: return "degraded"
