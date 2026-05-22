@@ -21,10 +21,13 @@ final class PoseClassifierTests: XCTestCase {
     }
 
     func testIndexBentClickCandidate() {
-        let hand = HandBuilder.makeHand(indexBendDeg: 130, middleBendDeg: 60)
+        // Index bend deep enough that curl_ratio enters the click window
+        // (≈ 1.22 at bendDeg=110), other fingers stay curled (cr ≈ 2.0).
+        let hand = HandBuilder.makeHand(indexBendDeg: 110, middleBendDeg: 60)
         let pose = PoseClassifier.classify(hand)
         XCTAssertEqual(pose.kind, .indexBent)
-        XCTAssertLessThan(pose.indexAngleDeg, 140)
+        XCTAssertGreaterThan(pose.index.curlRatio, 1.10)
+        XCTAssertLessThan(pose.index.curlRatio, 1.60)
     }
 
     func testNoFingerExtendedUnknown() {

@@ -83,6 +83,7 @@ final class DebugHUD: NSWindowController {
             .joined(separator: "\n")
 
         let rawText: String
+        let curlText: String
         if let p = rawPose {
             rawText = String(
                 format: "%@   I:%3d°  M:%3d°  R:%3d°  P:%3d°",
@@ -92,14 +93,23 @@ final class DebugHUD: NSWindowController {
                 Int(p.ringAngleDeg),
                 Int(p.pinkyAngleDeg)
             )
+            curlText = String(
+                format: "curl:    I:%.2f  M:%.2f  R:%.2f  P:%.2f",
+                p.index.curlRatio,
+                p.middle.curlRatio,
+                p.ring.curlRatio,
+                p.pinky.curlRatio
+            )
         } else {
             rawText = "(no hand visible)"
+            curlText = ""
         }
 
         let text = String(
             format: """
             state:        %@
             raw frame:    %@
+            %@
             fps:          %.1f
             vision lat:   %.1f ms
             min conf:     %.2f
@@ -112,18 +122,18 @@ final class DebugHUD: NSWindowController {
               sensitivity:   %.2f
               deadzone:      %.4f
               debounce in:   %d
-              debounce out:  %d
-              click enter:   %.0f°
-              click exit:    %.0f°
+              click start:   %.2f
+              click confirm: %.2f
+              click release: %.2f
             """,
-            display, rawText, frameRateHz, visionLatencyMs, minConfidence, landmarkCount,
+            display, rawText, curlText, frameRateHz, visionLatencyMs, minConfidence, landmarkCount,
             recentLines.isEmpty ? "  (none yet)" : recentLines,
             config.sensitivity,
             config.deadzoneNormalized,
             config.debounceEntryFrames,
-            config.debounceExitFrames,
-            config.clickEnterAngleDeg,
-            config.clickExitAngleDeg
+            config.clickStartCurlRatio,
+            config.clickConfirmCurlRatio,
+            config.clickReleaseCurlRatio
         )
         DispatchQueue.main.async { [textView] in
             textView.string = text

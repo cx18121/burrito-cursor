@@ -48,20 +48,21 @@ func write(_ frames: [Obs], to path: String) {
 
 let dir = "Tests/BurritoCursorCoreTests/Fixtures"
 
-// trace_clean_click: 5 pointing → 1 latch (150°) → 4 click (130°) → 5 pointing
+// trace_clean_click: 5 pointing → 1 latch (bend 110°) → 4 click (bend 90°) → 5 pointing
+// curl_ratio: pointing 1.0, latch 1.22, click 1.41
 var clean: [Obs] = []
 for i in 0..<5 { clean.append(frame(t: Double(i)/30, indexBend: 180)) }
-clean.append(frame(t: 5.0/30, indexBend: 150))
-for i in 6..<10 { clean.append(frame(t: Double(i)/30, indexBend: 130)) }
+clean.append(frame(t: 5.0/30, indexBend: 110))
+for i in 6..<10 { clean.append(frame(t: Double(i)/30, indexBend: 90)) }
 for i in 10..<15 { clean.append(frame(t: Double(i)/30, indexBend: 180)) }
 write(clean, to: "\(dir)/trace_clean_click.json")
 
 // trace_confidence_drop_mid_click: pointing → click → confidence drops
 var drop: [Obs] = []
 for i in 0..<5 { drop.append(frame(t: Double(i)/30, indexBend: 180)) }
-drop.append(frame(t: 5.0/30, indexBend: 150))
-for i in 6..<10 { drop.append(frame(t: Double(i)/30, indexBend: 130)) }
-for i in 10..<13 { drop.append(frame(t: Double(i)/30, indexBend: 130, conf: 0.1)) }
+drop.append(frame(t: 5.0/30, indexBend: 110))
+for i in 6..<10 { drop.append(frame(t: Double(i)/30, indexBend: 90)) }
+for i in 10..<13 { drop.append(frame(t: Double(i)/30, indexBend: 90, conf: 0.1)) }
 write(drop, to: "\(dir)/trace_confidence_drop_mid_click.json")
 
 // trace_hand_swap: pointing → hand teleports

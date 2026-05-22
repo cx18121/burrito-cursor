@@ -11,8 +11,18 @@ public struct Config: Equatable {
     public var deadzoneNormalized: Double
     public var debounceEntryFrames: Int
     public var debounceExitFrames: Int
-    public var clickEnterAngleDeg: Double
-    public var clickExitAngleDeg: Double
+
+    /// Click latch fires when index curl ratio crosses this. Should be just
+    /// above PoseClassifier.extendedCurlRatioMax — the moment the finger
+    /// leaves the "fully extended" region.
+    public var clickStartCurlRatio: Double
+    /// Click confirms when index curl ratio has stayed above this for
+    /// `debounceEntryFrames` frames in a row.
+    public var clickConfirmCurlRatio: Double
+    /// Click releases (and latch abandons) when index curl ratio drops below
+    /// this — finger returned to extended.
+    public var clickReleaseCurlRatio: Double
+
     public var degradedConfidenceThreshold: Double
     public var handJumpRejectionFraction: Double
     public var scrollSensitivity: Double
@@ -24,8 +34,9 @@ public struct Config: Equatable {
         deadzoneNormalized: 0.005,
         debounceEntryFrames: 2,
         debounceExitFrames: 1,
-        clickEnterAngleDeg: 145.0,
-        clickExitAngleDeg: 155.0,
+        clickStartCurlRatio: 1.15,
+        clickConfirmCurlRatio: 1.30,
+        clickReleaseCurlRatio: 1.10,
         degradedConfidenceThreshold: 0.3,
         handJumpRejectionFraction: 0.25,
         scrollSensitivity: 1.0,
@@ -47,11 +58,14 @@ public struct Config: Equatable {
         if let v = store.object(forKey: "debounceExitFrames") as? Int, (1...30).contains(v) {
             c.debounceExitFrames = v
         }
-        if let v = store.object(forKey: "clickEnterAngleDeg") as? Double, (60.0...170.0).contains(v) {
-            c.clickEnterAngleDeg = v
+        if let v = store.object(forKey: "clickStartCurlRatio") as? Double, (1.0...3.0).contains(v) {
+            c.clickStartCurlRatio = v
         }
-        if let v = store.object(forKey: "clickExitAngleDeg") as? Double, (60.0...170.0).contains(v) {
-            c.clickExitAngleDeg = v
+        if let v = store.object(forKey: "clickConfirmCurlRatio") as? Double, (1.0...3.0).contains(v) {
+            c.clickConfirmCurlRatio = v
+        }
+        if let v = store.object(forKey: "clickReleaseCurlRatio") as? Double, (1.0...3.0).contains(v) {
+            c.clickReleaseCurlRatio = v
         }
         if let v = store.object(forKey: "degradedConfidenceThreshold") as? Double, (0.0...1.0).contains(v) {
             c.degradedConfidenceThreshold = v
@@ -68,10 +82,12 @@ public struct Config: Equatable {
         if let v = store.object(forKey: "oneEuroMinCutoff") as? Double, (0.01...100.0).contains(v) {
             c.oneEuroMinCutoff = v
         }
-        // Invariant: enter angle must be <= exit angle (hysteresis direction)
-        if c.clickEnterAngleDeg > c.clickExitAngleDeg {
-            c.clickEnterAngleDeg = Config.defaults.clickEnterAngleDeg
-            c.clickExitAngleDeg = Config.defaults.clickExitAngleDeg
+        // Invariant: release threshold <= start threshold <= confirm threshold
+        if !(c.clickReleaseCurlRatio <= c.clickStartCurlRatio
+             && c.clickStartCurlRatio <= c.clickConfirmCurlRatio) {
+            c.clickStartCurlRatio = Config.defaults.clickStartCurlRatio
+            c.clickConfirmCurlRatio = Config.defaults.clickConfirmCurlRatio
+            c.clickReleaseCurlRatio = Config.defaults.clickReleaseCurlRatio
         }
         return c
     }

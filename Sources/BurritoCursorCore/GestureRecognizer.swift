@@ -18,23 +18,18 @@ public final class GestureRecognizer {
     }
 
     public func step(_ obs: HandObservation) -> GestureState {
-        // Empty observation: no hand visible → idle, fresh acquisition required next time
         guard !obs.points.isEmpty else {
             resetToIdle()
             return lastState
         }
 
-        // Confidence gate
         if obs.minConfidence < config.degradedConfidenceThreshold {
             transitionToDegraded()
-            // Don't push low-confidence frames into the window — they'd contaminate debounce.
-            // Clear the window so recovery requires fresh re-acquisition.
             window.removeAll()
             lastAcceptedMCP = nil
             return lastState
         }
 
-        // Hand-jump continuity check
         if let prev = lastAcceptedMCP, let cur = obs.points[.indexMCP] {
             let dx = cur.x - prev.x
             let dy = cur.y - prev.y
@@ -48,7 +43,6 @@ public final class GestureRecognizer {
             lastAcceptedMCP = cur
         }
 
-        // Classify and window
         let pose = PoseClassifier.classify(obs)
         window.append(Frame(obs: obs, pose: pose))
         if window.count > windowCapacity {
@@ -65,46 +59,46 @@ public final class GestureRecognizer {
 
         switch lastState {
         case .clicking:
-            // Asymmetric exit: immediate release on angle restoration OR loss of pointing pose.
-            if pose.indexAngleDeg > config.clickExitAngleDeg {
+            // Asymmetric exit: immediate release on curl recovery or pose loss.
+            if pose.index.curlRatio < config.clickReleaseCurlRatio {
                 return .pointing(point: mcp)
             }
             if pose.kind == .unknown {
-                return .pointing(point: mcp) // back to pointing forces InputCoordinator's mouseUp on next apply
+                // Forces InputCoordinator's mouseUp on next apply.
+                return .pointing(point: mcp)
             }
             return .clicking(point: mcp)
 
         case .clickLatched:
-            // Abandon if finger straightens
-            if pose.indexAngleDeg > config.clickExitAngleDeg {
+            // Abandon if finger extends back to nearly straight.
+            if pose.index.curlRatio < config.clickReleaseCurlRatio {
                 return .pointing(point: mcp)
             }
-            // Confirm only if every recent frame was a true click candidate (.indexBent).
-            // Gating on .indexBent (not just angle) prevents a closed fist from confirming.
+            // Confirm if recent frames all have a clear bend (above confirm threshold).
             let recent = window.suffix(entryFrames)
             if recent.count == entryFrames &&
-                recent.allSatisfy({ $0.pose.kind == .indexBent }) {
+                recent.allSatisfy({ $0.pose.index.curlRatio > config.clickConfirmCurlRatio }) {
                 return .clicking(point: mcp)
             }
             return .clickLatched(point: mcp)
 
         case .pointing:
-            // Click latch: index bend in the click window AND other fingers stay curled.
-            // Requiring others-curled rejects fists and waves — only a real index-finger-only
-            // bend (or the in-flight transition between pointing and indexBent) latches.
-            let othersCurled = pose.middleAngleDeg < PoseClassifier.curledAngleDeg
-                && pose.ringAngleDeg < PoseClassifier.curledAngleDeg
-                && pose.pinkyAngleDeg < PoseClassifier.curledAngleDeg
-            let intentionalIndexBend = pose.indexAngleDeg >= PoseClassifier.curledAngleDeg
-                && pose.indexAngleDeg < config.clickExitAngleDeg
-            if othersCurled && intentionalIndexBend && pose.kind != .scrolling {
+            // Latch when the index just starts bending AND it's not already fully
+            // curled (which would suggest a fist, not a click). Other fingers
+            // must remain curled.
+            let othersCurled = PoseClassifier.isCurled(pose.middle)
+                && PoseClassifier.isCurled(pose.ring)
+                && PoseClassifier.isCurled(pose.pinky)
+            let indexInClickWindow = pose.index.curlRatio > config.clickStartCurlRatio
+                && pose.index.curlRatio < PoseClassifier.curledCurlRatioMin
+            if othersCurled && indexInClickWindow && pose.kind != .scrolling {
                 return .clickLatched(point: mcp)
             }
             // Scroll promotion: sustained scrolling pose
             let recent = window.suffix(entryFrames)
             if recent.count == entryFrames &&
                 recent.allSatisfy({ $0.pose.kind == .scrolling }) {
-                return .scrolling(deltaY: scrollDeltaY(twoMostRecent: true), point: mcp)
+                return .scrolling(deltaY: scrollDeltaY(), point: mcp)
             }
             // Stay pointing while pointing pose continues
             if pose.kind == .pointing {
@@ -115,7 +109,7 @@ public final class GestureRecognizer {
 
         case .scrolling:
             if pose.kind == .scrolling {
-                return .scrolling(deltaY: scrollDeltaY(twoMostRecent: true), point: mcp)
+                return .scrolling(deltaY: scrollDeltaY(), point: mcp)
             }
             if pose.kind == .pointing {
                 return .pointing(point: mcp)
@@ -123,27 +117,23 @@ public final class GestureRecognizer {
             return .idle
 
         case .idle, .degraded:
-            // Require N sustained frames to leave idle/degraded
             let recent = window.suffix(entryFrames)
             guard recent.count == entryFrames else { return .idle }
             if recent.allSatisfy({ $0.pose.kind == .pointing }) {
                 return .pointing(point: mcp)
             }
             if recent.allSatisfy({ $0.pose.kind == .scrolling }) {
-                return .scrolling(deltaY: scrollDeltaY(twoMostRecent: true), point: mcp)
+                return .scrolling(deltaY: scrollDeltaY(), point: mcp)
             }
             return .idle
         }
     }
 
-    /// Delta-y from the previous frame to the current frame, scaled by scrollSensitivity.
-    /// Returns 0 if the window doesn't have at least two frames.
-    private func scrollDeltaY(twoMostRecent: Bool) -> Double {
-        let frames = twoMostRecent ? window.suffix(2) : window.suffix(window.count)
-        guard frames.count >= 2 else { return 0 }
-        let firstMCP = frames.first?.obs.points[.indexMCP]
-        let lastMCP = frames.last?.obs.points[.indexMCP]
-        guard let first = firstMCP, let last = lastMCP else { return 0 }
+    private func scrollDeltaY() -> Double {
+        let frames = window.suffix(2)
+        guard frames.count >= 2,
+              let first = frames.first?.obs.points[.indexMCP],
+              let last = frames.last?.obs.points[.indexMCP] else { return 0 }
         return (last.y - first.y) * config.scrollSensitivity
     }
 

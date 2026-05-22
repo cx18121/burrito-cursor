@@ -96,16 +96,16 @@ final class GestureRecognizerTests: XCTestCase {
 
     func testClickLatchAndConfirm() {
         let r = GestureRecognizer(config: .defaults)
-        for i in 0..<3 { _ = r.step(pointingHand(t: Double(i)/30)) }
-        // Angle 150 — below exit (155) but above enter (140): latch
-        let latched = r.step(handWithIndexAngle(150, t: 3.0/30))
+        for i in 0..<2 { _ = r.step(pointingHand(t: Double(i)/30)) }
+        // bendDeg=110 → curl_ratio ≈ 1.22, in click-start window → latch
+        let latched = r.step(handWithIndexAngle(110, t: 2.0/30))
         guard case .clickLatched = latched else {
-            return XCTFail("Expected .clickLatched at 150°, got \(latched)")
+            return XCTFail("Expected .clickLatched, got \(latched)")
         }
-        // Three frames at 130 (below enter 140): confirm click
-        _ = r.step(handWithIndexAngle(130, t: 4.0/30))
-        _ = r.step(handWithIndexAngle(130, t: 5.0/30))
-        let clicked = r.step(handWithIndexAngle(130, t: 6.0/30))
+        // bendDeg=90 → curl_ratio ≈ 1.41, above confirm threshold. Two
+        // sustained frames at confirm depth → .clicking.
+        _ = r.step(handWithIndexAngle(90, t: 3.0/30))
+        let clicked = r.step(handWithIndexAngle(90, t: 4.0/30))
         guard case .clicking = clicked else {
             return XCTFail("Expected .clicking after sustained bend, got \(clicked)")
         }
@@ -113,13 +113,12 @@ final class GestureRecognizerTests: XCTestCase {
 
     func testClickReleaseImmediateOnStraighten() {
         let r = GestureRecognizer(config: .defaults)
-        for i in 0..<3 { _ = r.step(pointingHand(t: Double(i)/30)) }
-        _ = r.step(handWithIndexAngle(150, t: 3.0/30))
-        _ = r.step(handWithIndexAngle(130, t: 4.0/30))
-        _ = r.step(handWithIndexAngle(130, t: 5.0/30))
-        _ = r.step(handWithIndexAngle(130, t: 6.0/30))
-        // Single frame above exit threshold → immediate release
-        let released = r.step(handWithIndexAngle(170, t: 7.0/30))
+        for i in 0..<2 { _ = r.step(pointingHand(t: Double(i)/30)) }
+        _ = r.step(handWithIndexAngle(110, t: 2.0/30))  // latch
+        _ = r.step(handWithIndexAngle(90, t: 3.0/30))
+        _ = r.step(handWithIndexAngle(90, t: 4.0/30))   // → clicking
+        // Index straightens (curl_ratio ≈ 1.0) → immediate release
+        let released = r.step(handWithIndexAngle(180, t: 5.0/30))
         guard case .pointing = released else {
             return XCTFail("Expected immediate .pointing on release, got \(released)")
         }
@@ -127,10 +126,10 @@ final class GestureRecognizerTests: XCTestCase {
 
     func testClickLatchAbandonOnStraighten() {
         let r = GestureRecognizer(config: .defaults)
-        for i in 0..<3 { _ = r.step(pointingHand(t: Double(i)/30)) }
-        _ = r.step(handWithIndexAngle(150, t: 3.0/30)) // latched
+        for i in 0..<2 { _ = r.step(pointingHand(t: Double(i)/30)) }
+        _ = r.step(handWithIndexAngle(110, t: 2.0/30))  // latched
         // User straightens before confirming
-        let abandoned = r.step(handWithIndexAngle(170, t: 4.0/30))
+        let abandoned = r.step(handWithIndexAngle(180, t: 3.0/30))
         guard case .pointing = abandoned else {
             return XCTFail("Expected .pointing after latch abandoned, got \(abandoned)")
         }
