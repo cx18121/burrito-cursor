@@ -122,16 +122,25 @@ final class AppController: NSObject, NSApplicationDelegate {
         // fighting over the camera, tear the main pipeline down while onboarding shows.
         if isOn { teardown(); refreshStatusItem() }
         if onboarding == nil { onboarding = OnboardingWindow() }
+
+        // Order matters for .accessory apps: activate *first*, otherwise the
+        // window comes up behind whatever app currently owns focus and the
+        // first click of this menu item appears to do nothing.
+        NSApp.activate(ignoringOtherApps: true)
         onboarding?.showWindow(nil)
         onboarding?.window?.makeKeyAndOrderFront(nil)
-        // Observe window close so we can persist onboardingShown only on success.
+
+        // Re-attach the willClose observer (remove any prior to avoid duplicates
+        // if the user opens setup multiple times without closing it in between).
         if let win = onboarding?.window {
+            NotificationCenter.default.removeObserver(
+                self, name: NSWindow.willCloseNotification, object: win
+            )
             NotificationCenter.default.addObserver(
                 self, selector: #selector(onOnboardingClosed),
                 name: NSWindow.willCloseNotification, object: win
             )
         }
-        NSApp.activate(ignoringOtherApps: true)
         onboarding?.startPreview()
     }
 
