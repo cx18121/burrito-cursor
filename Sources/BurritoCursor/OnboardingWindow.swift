@@ -21,6 +21,13 @@ final class OnboardingWindow: NSWindowController {
     private var latestObservation: HandObservation?
     private let observationLock = NSLock()
 
+    /// Wall-clock of the last preview render. Used to throttle preview rendering
+    /// to ~15fps — full 30fps was the source of severe slowdown (NSImage lockFocus
+    /// + bitmap composition on the main thread is expensive on retina displays).
+    /// Hand pose detection still runs at full camera rate; only the preview throttles.
+    private var lastPreviewRenderTime: Double = 0
+    private let previewMinFrameIntervalSec: Double = 1.0 / 15.0
+
     /// Lock-guarded "have we seen at least one frame" flag. Written from the
     /// camera capture queue; read from main when the window closes.
     private var _capturedAtLeastOneFrame = false
@@ -114,70 +121,84 @@ final class OnboardingWindow: NSWindowController {
     }
 
     private func updatePreview(_ pb: CVPixelBuffer) {
-        // CoreImage is thread-safe; do the GPU extraction off-main.
+        // Throttle preview rendering to ~15fps. Detection still runs at full rate.
+        let now = CACurrentMediaTime()
+        if now - lastPreviewRenderTime < previewMinFrameIntervalSec { return }
+        lastPreviewRenderTime = now
+
+        // CoreImage extraction is thread-safe; do it off-main.
         let ci = CIImage(cvPixelBuffer: pb)
         guard let cg = ciContext.createCGImage(ci, from: ci.extent) else { return }
-        let baseSize = NSSize(width: ci.extent.width, height: ci.extent.height)
+        let w = Int(ci.extent.width)
+        let h = Int(ci.extent.height)
 
         observationLock.lock()
         let obs = latestObservation
         observationLock.unlock()
 
-        // AppKit drawing (lockFocus, NSBezierPath, NSColor) MUST run on main.
+        // Build the composed image off-main using a direct CGContext bitmap.
+        // This avoids NSImage(size:) + lockFocus allocation overhead — that
+        // pattern was the source of the slowness on retina displays.
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: nil,
+            width: w, height: h,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        if let obs, !obs.points.isEmpty {
+            OnboardingWindow.drawLandmarks(obs, into: ctx, width: w, height: h)
+        }
+        guard let finalCG = ctx.makeImage() else { return }
+        let composed = NSImage(cgImage: finalCG, size: NSSize(width: w, height: h))
+
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            let baseImage = NSImage(cgImage: cg, size: baseSize)
-            let composed = NSImage(size: baseSize)
-            composed.lockFocus()
-            baseImage.draw(in: NSRect(origin: .zero, size: baseSize))
-            if let obs, !obs.points.isEmpty {
-                OnboardingWindow.drawLandmarks(obs, in: baseSize)
-            }
-            composed.unlockFocus()
-            self.previewView.image = composed
+            self?.previewView.image = composed
         }
     }
 
-    /// Draws hand landmarks as colored dots + finger skeleton lines onto the current
-    /// graphics context. Coordinates are mirrored back from screen-orientation
-    /// (HandObservation's x is pre-mirrored) so they line up with the camera image.
-    private static func drawLandmarks(_ obs: HandObservation, in size: NSSize) {
+    /// Draws hand landmarks directly into a CGContext (faster than NSBezierPath).
+    /// Coords are un-mirrored to match the camera image.
+    private static func drawLandmarks(
+        _ obs: HandObservation, into ctx: CGContext, width: Int, height: Int
+    ) {
         let dotRadius: CGFloat = 4
         let lineWidth: CGFloat = 2
 
-        func toScreen(_ p: BurritoCursorCore.NormalizedPoint) -> NSPoint {
-            // HandObservation mirrors x; un-mirror to get camera-image coords.
-            NSPoint(x: (1.0 - p.x) * Double(size.width), y: p.y * Double(size.height))
+        func cgPoint(_ p: BurritoCursorCore.NormalizedPoint) -> CGPoint {
+            CGPoint(x: (1.0 - p.x) * Double(width), y: p.y * Double(height))
         }
 
-        // Finger skeleton: MCP → PIP → DIP → Tip for each finger
-        let fingers: [(NSColor, [JointName])] = [
-            (.systemRed,    [.thumbCMC, .thumbMP, .thumbIP, .thumbTip]),
-            (.systemOrange, [.indexMCP, .indexPIP, .indexDIP, .indexTip]),
-            (.systemYellow, [.middleMCP, .middlePIP, .middleDIP, .middleTip]),
-            (.systemGreen,  [.ringMCP, .ringPIP, .ringDIP, .ringTip]),
-            (.systemBlue,   [.pinkyMCP, .pinkyPIP, .pinkyDIP, .pinkyTip]),
+        let fingers: [(CGColor, [JointName])] = [
+            (NSColor.systemRed.withAlphaComponent(0.8).cgColor,    [.thumbCMC, .thumbMP, .thumbIP, .thumbTip]),
+            (NSColor.systemOrange.withAlphaComponent(0.8).cgColor, [.indexMCP, .indexPIP, .indexDIP, .indexTip]),
+            (NSColor.systemYellow.withAlphaComponent(0.8).cgColor, [.middleMCP, .middlePIP, .middleDIP, .middleTip]),
+            (NSColor.systemGreen.withAlphaComponent(0.8).cgColor,  [.ringMCP, .ringPIP, .ringDIP, .ringTip]),
+            (NSColor.systemBlue.withAlphaComponent(0.8).cgColor,   [.pinkyMCP, .pinkyPIP, .pinkyDIP, .pinkyTip]),
         ]
+        ctx.setLineWidth(lineWidth)
+        ctx.setLineCap(.round)
         for (color, joints) in fingers {
-            let path = NSBezierPath()
-            path.lineWidth = lineWidth
+            ctx.setStrokeColor(color)
             var didMove = false
+            ctx.beginPath()
             for j in joints {
                 guard let p = obs.points[j] else { continue }
-                let sp = toScreen(p)
-                if didMove { path.line(to: sp) } else { path.move(to: sp); didMove = true }
+                let sp = cgPoint(p)
+                if didMove { ctx.addLine(to: sp) } else { ctx.move(to: sp); didMove = true }
             }
-            color.withAlphaComponent(0.8).setStroke()
-            path.stroke()
+            ctx.strokePath()
         }
-
-        // Dots for every joint (including wrist)
+        ctx.setFillColor(NSColor.white.withAlphaComponent(0.9).cgColor)
         for (_, p) in obs.points {
-            let sp = toScreen(p)
-            let rect = NSRect(x: sp.x - dotRadius, y: sp.y - dotRadius,
-                              width: dotRadius * 2, height: dotRadius * 2)
-            NSColor.white.withAlphaComponent(0.9).setFill()
-            NSBezierPath(ovalIn: rect).fill()
+            let sp = cgPoint(p)
+            ctx.fillEllipse(in: CGRect(
+                x: sp.x - dotRadius, y: sp.y - dotRadius,
+                width: dotRadius * 2, height: dotRadius * 2
+            ))
         }
     }
 
