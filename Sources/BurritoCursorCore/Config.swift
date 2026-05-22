@@ -22,9 +22,9 @@ public struct Config: Equatable {
     public static let defaults = Config(
         sensitivity: 1.0,
         deadzoneNormalized: 0.005,
-        debounceEntryFrames: 3,
+        debounceEntryFrames: 2,
         debounceExitFrames: 1,
-        clickEnterAngleDeg: 140.0,
+        clickEnterAngleDeg: 145.0,
         clickExitAngleDeg: 155.0,
         degradedConfidenceThreshold: 0.3,
         handJumpRejectionFraction: 0.25,

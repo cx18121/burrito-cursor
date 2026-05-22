@@ -36,12 +36,12 @@ final class GestureRecognizerTests: XCTestCase {
 
     // MARK: - Acquisition
 
-    func testRequiresThreeFramesToEnterPointing() {
+    func testRequiresSustainedFramesToEnterPointing() {
+        // Default debounce is 2 frames — must remain at idle on frame 1, promote on frame 2.
         let r = GestureRecognizer(config: .defaults)
         XCTAssertEqual(r.step(pointingHand(t: 0)), .idle)
-        XCTAssertEqual(r.step(pointingHand(t: 1.0/30)), .idle)
-        guard case .pointing = r.step(pointingHand(t: 2.0/30)) else {
-            return XCTFail("Expected .pointing after 3 frames")
+        guard case .pointing = r.step(pointingHand(t: 1.0/30)) else {
+            return XCTFail("Expected .pointing after 2 frames")
         }
     }
 

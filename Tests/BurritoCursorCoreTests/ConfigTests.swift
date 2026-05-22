@@ -6,9 +6,9 @@ final class ConfigTests: XCTestCase {
         let cfg = Config.defaults
         XCTAssertEqual(cfg.sensitivity, 1.0)
         XCTAssertEqual(cfg.deadzoneNormalized, 0.005)
-        XCTAssertEqual(cfg.debounceEntryFrames, 3)
+        XCTAssertEqual(cfg.debounceEntryFrames, 2)
         XCTAssertEqual(cfg.debounceExitFrames, 1)
-        XCTAssertEqual(cfg.clickEnterAngleDeg, 140.0)
+        XCTAssertEqual(cfg.clickEnterAngleDeg, 145.0)
         XCTAssertEqual(cfg.clickExitAngleDeg, 155.0)
         XCTAssertEqual(cfg.degradedConfidenceThreshold, 0.3)
         XCTAssertEqual(cfg.handJumpRejectionFraction, 0.25)
@@ -25,7 +25,7 @@ final class ConfigTests: XCTestCase {
         let cfg = Config.load(from: store)
         XCTAssertEqual(cfg.sensitivity, 2.5)
         XCTAssertEqual(cfg.deadzoneNormalized, 0.01)
-        XCTAssertEqual(cfg.clickEnterAngleDeg, 140.0, "Untouched keys fall back to defaults")
+        XCTAssertEqual(cfg.clickEnterAngleDeg, 145.0, "Untouched keys fall back to defaults")
     }
 
     func testInvariantsRejectInvalidValues() {
@@ -44,8 +44,8 @@ final class ConfigTests: XCTestCase {
         ])
         let cfg = Config.load(from: store)
         XCTAssertEqual(cfg.sensitivity, 1.0)
-        XCTAssertEqual(cfg.debounceEntryFrames, 3)
-        XCTAssertEqual(cfg.clickEnterAngleDeg, 140.0)
+        XCTAssertEqual(cfg.debounceEntryFrames, 2)
+        XCTAssertEqual(cfg.clickEnterAngleDeg, 145.0)
         XCTAssertEqual(cfg.degradedConfidenceThreshold, 0.3)
         XCTAssertEqual(cfg.oneEuroBeta, 0.007)
     }
@@ -57,7 +57,7 @@ final class ConfigTests: XCTestCase {
             "clickExitAngleDeg": 130.0,
         ])
         let cfg = Config.load(from: store)
-        XCTAssertEqual(cfg.clickEnterAngleDeg, 140.0)
+        XCTAssertEqual(cfg.clickEnterAngleDeg, 145.0)
         XCTAssertEqual(cfg.clickExitAngleDeg, 155.0)
     }
 }

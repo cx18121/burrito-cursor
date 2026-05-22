@@ -148,7 +148,15 @@ final class OnboardingWindow: NSWindowController {
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return }
+        // Horizontal flip — selfie view. Without this the preview looks backwards
+        // (you see yourself as the camera sees you, not as a mirror would).
+        // HandObservation x coords are already pre-mirrored to match user-relative
+        // space, so flipping the camera here makes landmarks line up at p.x * width.
+        ctx.saveGState()
+        ctx.translateBy(x: CGFloat(w), y: 0)
+        ctx.scaleBy(x: -1, y: 1)
         ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.restoreGState()
         if let obs, !obs.points.isEmpty {
             OnboardingWindow.drawLandmarks(obs, into: ctx, width: w, height: h)
         }
@@ -169,7 +177,9 @@ final class OnboardingWindow: NSWindowController {
         let lineWidth: CGFloat = 2
 
         func cgPoint(_ p: BurritoCursorCore.NormalizedPoint) -> CGPoint {
-            CGPoint(x: (1.0 - p.x) * Double(width), y: p.y * Double(height))
+            // HandObservation.x is already mirrored (user-relative); the camera
+            // image above is also drawn flipped, so landmarks align at p.x * width.
+            CGPoint(x: p.x * Double(width), y: p.y * Double(height))
         }
 
         let fingers: [(CGColor, [JointName])] = [

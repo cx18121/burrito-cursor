@@ -15,9 +15,12 @@ public struct ClassifiedPose: Equatable {
 }
 
 public enum PoseClassifier {
-    public static let extendedAngleDeg = 160.0
-    public static let curledAngleDeg = 110.0
-    public static let clickRawThresholdDeg = 140.0
+    // Loosened from initial 160/110/140 — real hands rarely fully extend (most
+    // "extended" fingers sit at 150-170°) and rarely fully curl (most "curled"
+    // fingers sit at 90-130°). Wider bands = more forgiving classification.
+    public static let extendedAngleDeg = 150.0
+    public static let curledAngleDeg = 120.0
+    public static let clickRawThresholdDeg = 145.0
 
     /// Per-frame raw classification. The state machine in `GestureRecognizer`
     /// applies hysteresis using `Config.clickEnterAngleDeg` / `clickExitAngleDeg`.

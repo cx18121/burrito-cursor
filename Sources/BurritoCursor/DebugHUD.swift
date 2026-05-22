@@ -62,6 +62,7 @@ final class DebugHUD: NSWindowController {
         visionLatencyMs: Double,
         minConfidence: Double,
         landmarkCount: Int,
+        rawPose: ClassifiedPose?,
         config: Config
     ) {
         let kind = Self.kindLabel(for: state)
@@ -81,9 +82,24 @@ final class DebugHUD: NSWindowController {
             .map { String(format: "  [%5.2fs] %@", $0.t, $0.kind) }
             .joined(separator: "\n")
 
+        let rawText: String
+        if let p = rawPose {
+            rawText = String(
+                format: "%@   I:%3d°  M:%3d°  R:%3d°  P:%3d°",
+                String(describing: p.kind),
+                Int(p.indexAngleDeg),
+                Int(p.middleAngleDeg),
+                Int(p.ringAngleDeg),
+                Int(p.pinkyAngleDeg)
+            )
+        } else {
+            rawText = "(no hand visible)"
+        }
+
         let text = String(
             format: """
             state:        %@
+            raw frame:    %@
             fps:          %.1f
             vision lat:   %.1f ms
             min conf:     %.2f
@@ -100,7 +116,7 @@ final class DebugHUD: NSWindowController {
               click enter:   %.0f°
               click exit:    %.0f°
             """,
-            display, frameRateHz, visionLatencyMs, minConfidence, landmarkCount,
+            display, rawText, frameRateHz, visionLatencyMs, minConfidence, landmarkCount,
             recentLines.isEmpty ? "  (none yet)" : recentLines,
             config.sensitivity,
             config.deadzoneNormalized,

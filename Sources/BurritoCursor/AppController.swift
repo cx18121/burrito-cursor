@@ -172,6 +172,12 @@ final class AppController: NSObject, NSApplicationDelegate {
             let state = rec.step(obs ?? HandObservation(timestampSec: 0, points: [:]))
             let conf = obs?.minConfidence ?? 0.0
             let landmarks = obs?.points.count ?? 0
+            let rawPose: ClassifiedPose?
+            if let obs, !obs.points.isEmpty {
+                rawPose = PoseClassifier.classify(obs)
+            } else {
+                rawPose = nil
+            }
             DispatchQueue.main.async {
                 coord.apply(state: state)
                 self?.hud?.update(
@@ -180,6 +186,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                     visionLatencyMs: stats.visionLatencyMs,
                     minConfidence: conf,
                     landmarkCount: landmarks,
+                    rawPose: rawPose,
                     config: cfg
                 )
             }
