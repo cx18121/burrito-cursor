@@ -4,6 +4,7 @@
 *.xcworkspace/
 DerivedData/
 .DS_Store
+BurritoCursor.app
 BurritoCursor.app/
 *.dmg
 Package.resolved
