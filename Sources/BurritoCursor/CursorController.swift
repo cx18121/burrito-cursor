@@ -18,28 +18,20 @@ final class CursorController {
     func handlePointing(at mcp: BurritoCursorCore.NormalizedPoint) {
         defer { lastMCP = mcp }
         guard let prev = lastMCP else { return }
-
-        var dx = mcp.x - prev.x
-        // Vision y is bottom-left origin; CGEvent cursor y is top-left → invert
-        var dy = -(mcp.y - prev.y)
-
-        if abs(dx) < config.deadzoneNormalized { dx = 0 }
-        if abs(dy) < config.deadzoneNormalized { dy = 0 }
-
         guard let screen = NSScreen.main else { return }
-        let screenW = screen.frame.width
-        let screenH = screen.frame.height
 
-        // 0.2 = ~20cm arm sweep maps to full primary display at sensitivity 1.0
-        let scaleX = screenW * config.sensitivity / 0.2
-        let scaleY = screenH * config.sensitivity / 0.2
-
-        let now = CACurrentMediaTime()
-        let sx = oneEuroX.filter(dx * scaleX, timestampSec: now)
-        let sy = oneEuroY.filter(dy * scaleY, timestampSec: now)
+        let result = CursorMath.computeDelta(
+            current: mcp,
+            previous: prev,
+            screenSize: (Double(screen.frame.width), Double(screen.frame.height)),
+            config: config,
+            timestamp: CACurrentMediaTime(),
+            filterX: &oneEuroX,
+            filterY: &oneEuroY
+        )
 
         let cur = currentCursorPosition()
-        let target = CGPoint(x: cur.x + sx, y: cur.y + sy)
+        let target = CGPoint(x: cur.x + result.dx, y: cur.y + result.dy)
         post(eventType: .mouseMoved, at: target)
     }
 

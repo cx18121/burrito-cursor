@@ -48,12 +48,32 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     private func installStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let btn = statusItem.button {
+            btn.target = self
+            btn.action = #selector(statusItemClicked)
+            btn.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        }
         refreshStatusItem()
     }
 
     private func refreshStatusItem() {
         statusItem.button?.title = isOn ? "🤚" : "✋"
-        statusItem.menu = buildMenu()
+        // Menu is set dynamically on right-click only — don't keep it attached
+        // or left-clicks will pop it up too.
+    }
+
+    @objc private func statusItemClicked() {
+        let evt = NSApp.currentEvent
+        let isRightClick = evt?.type == .rightMouseUp
+            || (evt?.modifierFlags.contains(.control) ?? false)
+        if isRightClick {
+            // Temporarily attach the menu so the system pops it up at the button.
+            statusItem.menu = buildMenu()
+            statusItem.button?.performClick(nil)
+            statusItem.menu = nil
+        } else {
+            toggle()
+        }
     }
 
     private func buildMenu() -> NSMenu {
@@ -147,6 +167,16 @@ final class AppController: NSObject, NSApplicationDelegate {
             }
         }
 
+        cam.setErrorHandler { [weak self] error in
+            guard let self else { return }
+            self.teardown()
+            self.refreshStatusItem()
+            self.showAlert(
+                title: "Camera interrupted",
+                message: error?.localizedDescription
+                    ?? "The camera session was interrupted — Burrito Cursor has been disabled."
+            )
+        }
         do {
             try cam.start { [weak det] buf, ts in
                 det?.submit(buffer: buf, timestamp: ts)

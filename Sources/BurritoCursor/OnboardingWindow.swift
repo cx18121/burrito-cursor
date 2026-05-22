@@ -21,6 +21,10 @@ final class OnboardingWindow: NSWindowController {
     /// onboarding should re-open on the next launch.
     private(set) var capturedAtLeastOneFrame = false
 
+    /// Most recent observation, used to overlay landmarks on the preview.
+    private var latestObservation: HandObservation?
+    private let observationLock = NSLock()
+
     convenience init() {
         let win = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 440),
@@ -63,6 +67,9 @@ final class OnboardingWindow: NSWindowController {
         let cam = CameraPipeline()
         let det = HandPoseDetector()
         det.setHandler { [weak self] obs, _ in
+            self?.observationLock.lock()
+            self?.latestObservation = obs
+            self?.observationLock.unlock()
             DispatchQueue.main.async {
                 if let obs, !obs.points.isEmpty {
                     let pose = PoseClassifier.classify(obs)
@@ -100,9 +107,66 @@ final class OnboardingWindow: NSWindowController {
     private func updatePreview(_ pb: CVPixelBuffer) {
         let ci = CIImage(cvPixelBuffer: pb)
         guard let cg = ciContext.createCGImage(ci, from: ci.extent) else { return }
-        let img = NSImage(cgImage: cg, size: NSSize(width: ci.extent.width, height: ci.extent.height))
+        let baseSize = NSSize(width: ci.extent.width, height: ci.extent.height)
+        let baseImage = NSImage(cgImage: cg, size: baseSize)
+
+        observationLock.lock()
+        let obs = latestObservation
+        observationLock.unlock()
+
+        let composed = NSImage(size: baseSize)
+        composed.lockFocus()
+        baseImage.draw(in: NSRect(origin: .zero, size: baseSize))
+        if let obs, !obs.points.isEmpty {
+            OnboardingWindow.drawLandmarks(obs, in: baseSize)
+        }
+        composed.unlockFocus()
+
         DispatchQueue.main.async { [weak self] in
-            self?.previewView.image = img
+            self?.previewView.image = composed
+        }
+    }
+
+    /// Draws hand landmarks as colored dots + finger skeleton lines onto the current
+    /// graphics context. Coordinates are mirrored back from screen-orientation
+    /// (HandObservation's x is pre-mirrored) so they line up with the camera image.
+    private static func drawLandmarks(_ obs: HandObservation, in size: NSSize) {
+        let dotRadius: CGFloat = 4
+        let lineWidth: CGFloat = 2
+
+        func toScreen(_ p: BurritoCursorCore.NormalizedPoint) -> NSPoint {
+            // HandObservation mirrors x; un-mirror to get camera-image coords.
+            NSPoint(x: (1.0 - p.x) * Double(size.width), y: p.y * Double(size.height))
+        }
+
+        // Finger skeleton: MCP → PIP → DIP → Tip for each finger
+        let fingers: [(NSColor, [JointName])] = [
+            (.systemRed,    [.thumbCMC, .thumbMP, .thumbIP, .thumbTip]),
+            (.systemOrange, [.indexMCP, .indexPIP, .indexDIP, .indexTip]),
+            (.systemYellow, [.middleMCP, .middlePIP, .middleDIP, .middleTip]),
+            (.systemGreen,  [.ringMCP, .ringPIP, .ringDIP, .ringTip]),
+            (.systemBlue,   [.pinkyMCP, .pinkyPIP, .pinkyDIP, .pinkyTip]),
+        ]
+        for (color, joints) in fingers {
+            let path = NSBezierPath()
+            path.lineWidth = lineWidth
+            var didMove = false
+            for j in joints {
+                guard let p = obs.points[j] else { continue }
+                let sp = toScreen(p)
+                if didMove { path.line(to: sp) } else { path.move(to: sp); didMove = true }
+            }
+            color.withAlphaComponent(0.8).setStroke()
+            path.stroke()
+        }
+
+        // Dots for every joint (including wrist)
+        for (_, p) in obs.points {
+            let sp = toScreen(p)
+            let rect = NSRect(x: sp.x - dotRadius, y: sp.y - dotRadius,
+                              width: dotRadius * 2, height: dotRadius * 2)
+            NSColor.white.withAlphaComponent(0.9).setFill()
+            NSBezierPath(ovalIn: rect).fill()
         }
     }
 

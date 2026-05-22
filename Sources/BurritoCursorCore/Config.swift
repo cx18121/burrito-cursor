@@ -35,17 +35,44 @@ public struct Config: Equatable {
 
     public static func load(from store: KVStore) -> Config {
         var c = Config.defaults
-        if let v = store.object(forKey: "sensitivity") as? Double, v > 0 { c.sensitivity = v }
-        if let v = store.object(forKey: "deadzoneNormalized") as? Double, v >= 0 { c.deadzoneNormalized = v }
-        if let v = store.object(forKey: "debounceEntryFrames") as? Int, v >= 1 { c.debounceEntryFrames = v }
-        if let v = store.object(forKey: "debounceExitFrames") as? Int, v >= 1 { c.debounceExitFrames = v }
-        if let v = store.object(forKey: "clickEnterAngleDeg") as? Double { c.clickEnterAngleDeg = v }
-        if let v = store.object(forKey: "clickExitAngleDeg") as? Double { c.clickExitAngleDeg = v }
-        if let v = store.object(forKey: "degradedConfidenceThreshold") as? Double { c.degradedConfidenceThreshold = v }
-        if let v = store.object(forKey: "handJumpRejectionFraction") as? Double, v > 0 { c.handJumpRejectionFraction = v }
-        if let v = store.object(forKey: "scrollSensitivity") as? Double, v > 0 { c.scrollSensitivity = v }
-        if let v = store.object(forKey: "oneEuroBeta") as? Double { c.oneEuroBeta = v }
-        if let v = store.object(forKey: "oneEuroMinCutoff") as? Double { c.oneEuroMinCutoff = v }
+        if let v = store.object(forKey: "sensitivity") as? Double, (0.05...20.0).contains(v) {
+            c.sensitivity = v
+        }
+        if let v = store.object(forKey: "deadzoneNormalized") as? Double, (0...0.2).contains(v) {
+            c.deadzoneNormalized = v
+        }
+        if let v = store.object(forKey: "debounceEntryFrames") as? Int, (1...30).contains(v) {
+            c.debounceEntryFrames = v
+        }
+        if let v = store.object(forKey: "debounceExitFrames") as? Int, (1...30).contains(v) {
+            c.debounceExitFrames = v
+        }
+        if let v = store.object(forKey: "clickEnterAngleDeg") as? Double, (60.0...170.0).contains(v) {
+            c.clickEnterAngleDeg = v
+        }
+        if let v = store.object(forKey: "clickExitAngleDeg") as? Double, (60.0...170.0).contains(v) {
+            c.clickExitAngleDeg = v
+        }
+        if let v = store.object(forKey: "degradedConfidenceThreshold") as? Double, (0.0...1.0).contains(v) {
+            c.degradedConfidenceThreshold = v
+        }
+        if let v = store.object(forKey: "handJumpRejectionFraction") as? Double, (0.01...1.0).contains(v) {
+            c.handJumpRejectionFraction = v
+        }
+        if let v = store.object(forKey: "scrollSensitivity") as? Double, (0.05...20.0).contains(v) {
+            c.scrollSensitivity = v
+        }
+        if let v = store.object(forKey: "oneEuroBeta") as? Double, (0.0...10.0).contains(v) {
+            c.oneEuroBeta = v
+        }
+        if let v = store.object(forKey: "oneEuroMinCutoff") as? Double, (0.01...100.0).contains(v) {
+            c.oneEuroMinCutoff = v
+        }
+        // Invariant: enter angle must be <= exit angle (hysteresis direction)
+        if c.clickEnterAngleDeg > c.clickExitAngleDeg {
+            c.clickEnterAngleDeg = Config.defaults.clickEnterAngleDeg
+            c.clickExitAngleDeg = Config.defaults.clickExitAngleDeg
+        }
         return c
     }
 }

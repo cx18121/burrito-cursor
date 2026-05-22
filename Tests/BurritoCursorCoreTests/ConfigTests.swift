@@ -33,6 +33,33 @@ final class ConfigTests: XCTestCase {
         let cfg = Config.load(from: store)
         XCTAssertEqual(cfg.sensitivity, 1.0, "Negative sensitivity must fall back to default")
     }
+
+    func testRangeBoundariesRejected() {
+        let store = InMemoryKVStore([
+            "sensitivity": 100.0,                  // > 20 max
+            "debounceEntryFrames": 1000,           // > 30 max
+            "clickEnterAngleDeg": 200.0,           // > 170 max
+            "degradedConfidenceThreshold": 1.5,    // > 1 max
+            "oneEuroBeta": -0.1,                   // < 0 min
+        ])
+        let cfg = Config.load(from: store)
+        XCTAssertEqual(cfg.sensitivity, 1.0)
+        XCTAssertEqual(cfg.debounceEntryFrames, 3)
+        XCTAssertEqual(cfg.clickEnterAngleDeg, 140.0)
+        XCTAssertEqual(cfg.degradedConfidenceThreshold, 0.3)
+        XCTAssertEqual(cfg.oneEuroBeta, 0.007)
+    }
+
+    func testEnterMustBeLessThanOrEqualToExit() {
+        // Backwards values fall back to default pair, not partially-corrupted state
+        let store = InMemoryKVStore([
+            "clickEnterAngleDeg": 160.0,
+            "clickExitAngleDeg": 130.0,
+        ])
+        let cfg = Config.load(from: store)
+        XCTAssertEqual(cfg.clickEnterAngleDeg, 140.0)
+        XCTAssertEqual(cfg.clickExitAngleDeg, 155.0)
+    }
 }
 
 final class InMemoryKVStore: KVStore {
