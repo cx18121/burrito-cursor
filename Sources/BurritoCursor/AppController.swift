@@ -53,32 +53,63 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     private func refreshStatusItem() {
-        // Title changes also act as a state indicator: ✋ = off, 🤚 = on.
-        // Plus the menu's "Enable / Disable" item updates so users can see state.
-        statusItem.button?.title = isOn ? "🤚" : "✋"
+        guard let btn = statusItem.button else { return }
+        // Burrito emoji as the menu bar icon, on brand. State is communicated by:
+        // (1) the system's appearsDisabled rendering (faded when off, solid when on),
+        // (2) the menu header dot (🟢 / ⚪️),
+        // (3) the menu's "Enable / Disable Cursor" toggle label.
+        btn.image = nil
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 16)
+        ]
+        btn.attributedTitle = NSAttributedString(string: "🌯", attributes: attrs)
+        btn.appearsDisabled = !isOn
         statusItem.menu = buildMenu()
     }
 
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
+
+        // Status header — disabled item that visually communicates current state.
+        let dot = isOn ? "🟢" : "⚪️"
+        let header = NSMenuItem(title: "\(dot)  \(isOn ? "Cursor enabled" : "Cursor disabled")", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        menu.addItem(NSMenuItem.separator())
+
+        // Toggle — show the global hotkey hint inline so users learn it
         let toggleTitle = isOn ? "Disable Cursor" : "Enable Cursor"
-        let toggleItem = NSMenuItem(title: toggleTitle, action: #selector(toggle), keyEquivalent: "")
+        let toggleItem = NSMenuItem(title: toggleTitle, action: #selector(toggle), keyEquivalent: "h")
+        toggleItem.keyEquivalentModifierMask = [.control, .option]
         toggleItem.target = self
+        toggleItem.image = symbol(isOn ? "pause.circle" : "play.circle")
         menu.addItem(toggleItem)
         menu.addItem(NSMenuItem.separator())
 
-        let onboardItem = NSMenuItem(title: "Onboarding…", action: #selector(showOnboarding), keyEquivalent: "")
+        let onboardItem = NSMenuItem(title: "Setup & Camera Preview…", action: #selector(showOnboarding), keyEquivalent: "")
         onboardItem.target = self
+        onboardItem.image = symbol("camera.viewfinder")
         menu.addItem(onboardItem)
 
         let hudItem = NSMenuItem(title: "Show Debug HUD", action: #selector(showDebugHUD), keyEquivalent: "")
         hudItem.target = self
+        hudItem.image = symbol("chart.bar.doc.horizontal")
         menu.addItem(hudItem)
+
         menu.addItem(NSMenuItem.separator())
 
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(NSApp.terminate), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit Burrito Cursor", action: #selector(NSApp.terminate(_:)), keyEquivalent: "q")
+        quitItem.image = symbol("power")
         menu.addItem(quitItem)
+
         return menu
+    }
+
+    /// Small SF Symbol image sized for menu rows.
+    private func symbol(_ name: String) -> NSImage? {
+        let cfg = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(cfg)
     }
 
     @objc private func toggle() {
