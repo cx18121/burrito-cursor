@@ -5,12 +5,8 @@ public enum GestureState: Equatable {
     case pointing(point: NormalizedPoint)              // cursor follows knuckle, no pinch yet
     case clicking(point: NormalizedPoint)              // pinch active — mouseDown held
     case scrolling(deltaY: Double, point: NormalizedPoint)
-    case degraded(previous: PreviousNonDegraded)
-
-    public enum PreviousNonDegraded: Equatable {
-        case idle
-        case pointing(point: NormalizedPoint)
-        case clicking(point: NormalizedPoint)
-        case scrolling(point: NormalizedPoint)
-    }
+    /// Confidence below threshold — release any held click and wait for recovery.
+    /// Equivalent to `.idle` for `InputCoordinator`, but distinct so the HUD/preview
+    /// can surface "tracking lost" vs "no hand visible".
+    case degraded
 }

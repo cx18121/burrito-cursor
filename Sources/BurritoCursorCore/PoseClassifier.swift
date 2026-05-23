@@ -30,7 +30,7 @@ public struct ClassifiedPose: Equatable {
     /// only meaningful while in `.pointing`.
     public let pinchDistance: Double
 
-    // Legacy 2D-angle accessors so existing HUD code keeps working.
+    // Convenience accessors for HUD / preview display.
     public var indexAngleDeg: Double { index.angleDeg }
     public var middleAngleDeg: Double { middle.angleDeg }
     public var ringAngleDeg: Double { ring.angleDeg }
@@ -42,11 +42,6 @@ public enum PoseClassifier {
     public static let extendedCurlRatioMax = 1.10
     /// curlRatio above this → finger is folded (curled). Used by isCurled().
     public static let curledCurlRatioMin = 1.60
-
-    // Legacy angle thresholds retained for backwards-compatible callers.
-    public static let extendedAngleDeg = 150.0
-    public static let curledAngleDeg = 120.0
-    public static let clickRawThresholdDeg = 145.0
 
     public static func classify(_ obs: HandObservation) -> ClassifiedPose {
         let palmScale = computePalmScale(obs)

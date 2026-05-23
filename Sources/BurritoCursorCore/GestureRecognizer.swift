@@ -3,6 +3,10 @@ import Foundation
 public final class GestureRecognizer {
     private let config: Config
     public private(set) var lastState: GestureState = .idle
+    /// Pose classification from the most recent `step()` call, or `nil` when there
+    /// was no valid hand (empty observation or below-threshold confidence).
+    /// Exposed so callers (HUD, preview) don't re-run `PoseClassifier.classify`.
+    public private(set) var lastPose: ClassifiedPose?
 
     private struct Frame {
         let obs: HandObservation
@@ -23,14 +27,16 @@ public final class GestureRecognizer {
     public func step(_ obs: HandObservation) -> GestureState {
         guard !obs.points.isEmpty else {
             resetToIdle()
+            lastPose = nil
             return lastState
         }
 
         if obs.minConfidence < config.degradedConfidenceThreshold {
-            transitionToDegraded()
             window.removeAll()
             lastAcceptedMCP = nil
             pinching = false
+            lastPose = nil
+            lastState = .degraded
             return lastState
         }
 
@@ -48,6 +54,7 @@ public final class GestureRecognizer {
         }
 
         let pose = PoseClassifier.classify(obs)
+        lastPose = pose
         window.append(Frame(obs: obs, pose: pose))
         if window.count > windowCapacity {
             window.removeFirst(window.count - windowCapacity)
@@ -70,9 +77,13 @@ public final class GestureRecognizer {
 
         switch lastState {
         case .clicking:
-            // Pinch released → release click. Pose lost → also release.
+            // Pinch hysteresis is the ONLY click gate. Pose flicker (the
+            // classifier briefly returning .unknown or .openPalm because a
+            // non-pinch finger moved mid-drag) used to drop us to .pointing
+            // here, which made InputCoordinator emit mouseUp+mouseDown — a
+            // phantom release-and-repress that broke drag-select. Stay in
+            // .clicking until the pinch actually releases.
             if !pinching { return .pointing(point: mcp) }
-            if pose.kind == .unknown { return .pointing(point: mcp) } // forces mouseUp
             return .clicking(point: mcp)
 
         case .pointing:
@@ -129,17 +140,6 @@ public final class GestureRecognizer {
         lastAcceptedMCP = nil
         pinching = false
         lastState = .idle
-    }
-
-    private func transitionToDegraded() {
-        let previous: GestureState.PreviousNonDegraded
-        switch lastState {
-        case .idle: previous = .idle
-        case .pointing(let p): previous = .pointing(point: p)
-        case .clicking(let p): previous = .clicking(point: p)
-        case .scrolling(_, let p): previous = .scrolling(point: p)
-        case .degraded(let prev): previous = prev
-        }
-        lastState = .degraded(previous: previous)
+        lastPose = nil
     }
 }

@@ -35,10 +35,12 @@ final class CursorController {
         post(eventType: .mouseMoved, at: target)
     }
 
-    /// Freeze cursor at current OS position; reset the smoothing filter so the next
-    /// pointing frame starts clean (no leftover momentum).
-    func freeze(at mcp: BurritoCursorCore.NormalizedPoint) {
-        lastMCP = mcp
+    /// Clear the last-MCP anchor and reset the smoothing filter so the next
+    /// `.pointing` frame after a gap starts clean. Without this, a hand that
+    /// disappears and reappears in a different spot would cause `handlePointing`
+    /// to compute delta = (newSpot − oldSpot), jumping the cursor across the screen.
+    func reset() {
+        lastMCP = nil
         oneEuroX = OneEuroFilter(minCutoff: config.oneEuroMinCutoff, beta: config.oneEuroBeta)
         oneEuroY = OneEuroFilter(minCutoff: config.oneEuroMinCutoff, beta: config.oneEuroBeta)
     }

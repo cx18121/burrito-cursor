@@ -76,18 +76,10 @@ final class DebugHUD: NSWindowController {
     private var lastStateKind: String?
     private var sessionStart: Double?
 
-    /// Called whenever a new GestureState is emitted. Cheap; safe to call every frame.
-    func update(
-        state: GestureState,
-        frameRateHz: Double,
-        visionLatencyMs: Double,
-        minConfidence: Double,
-        landmarkCount: Int,
-        rawPose: ClassifiedPose?,
-        config: Config
-    ) {
-        let kind = Self.kindLabel(for: state)
-        let display = Self.label(for: state)
+    /// Called whenever a new snapshot is available. Cheap; safe to call every frame.
+    func update(snapshot s: PipelineSnapshot, config: Config) {
+        let kind = Self.kindLabel(for: s.state)
+        let display = Self.label(for: s.state)
 
         if sessionStart == nil { sessionStart = CACurrentMediaTime() }
         if kind != lastStateKind {
@@ -106,7 +98,7 @@ final class DebugHUD: NSWindowController {
         let rawText: String
         let curlText: String
         let pinchText: String
-        if let p = rawPose {
+        if let p = s.pose {
             rawText = String(
                 format: "%@   T:%.2f  I:%.2f  M:%.2f  R:%.2f  P:%.2f",
                 String(describing: p.kind),
@@ -150,7 +142,8 @@ final class DebugHUD: NSWindowController {
               pinch start:   %.2f
               pinch end:     %.2f
             """,
-            display, rawText, curlText, pinchText, frameRateHz, visionLatencyMs, minConfidence, landmarkCount,
+            display, rawText, curlText, pinchText,
+            s.frameRateHz, s.visionLatencyMs, s.minConfidence, s.landmarkCount,
             recentLines.isEmpty ? "  (none yet)" : recentLines,
             config.sensitivity,
             config.deadzoneNormalized,

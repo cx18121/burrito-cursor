@@ -10,13 +10,19 @@ struct DetectorStats {
     var visionLatencyMs: Double = 0
 }
 
+/// Runs Apple's hand-pose Vision request on submitted frames. Latest-frame
+/// backpressure: if a new frame arrives while a previous one is still being
+/// processed, the new one *replaces* the pending slot — stale frames are
+/// dropped. Observations are dispatched to any number of subscribers.
 final class HandPoseDetector {
+    typealias Handler = (HandObservation?, DetectorStats) -> Void
+
     private let request: VNDetectHumanHandPoseRequest
     private let processQueue = DispatchQueue(label: "burritocursor.vision", qos: .userInitiated)
     private var pendingBuffer: (CVPixelBuffer, CMTime)?
     private var isProcessing = false
     private let lock = NSLock()
-    private var _handler: ((HandObservation?, DetectorStats) -> Void)?
+    private var subscribers: [UUID: Handler] = [:]
 
     // Stats tracking — exponential moving average so the HUD reads smooth.
     private var lastFrameTime: CFTimeInterval?
@@ -24,8 +30,7 @@ final class HandPoseDetector {
     private var latencyEMA: Double = 0
 
     /// Vision rate cap. Hand tracking at 15fps is plenty for cursor control
-    /// and roughly halves CPU vs unthrottled. Without this on slower hardware
-    /// the app can saturate a core.
+    /// and roughly halves CPU vs unthrottled.
     private let minVisionIntervalSec: Double = 1.0 / 15.0
     private var lastVisionTime: CFTimeInterval = 0
 
@@ -34,15 +39,24 @@ final class HandPoseDetector {
         request.maximumHandCount = 1
     }
 
-    func setHandler(_ h: @escaping (HandObservation?, DetectorStats) -> Void) {
-        lock.lock(); defer { lock.unlock() }
-        _handler = h
+    // MARK: - Subscription
+
+    func subscribe(_ handler: @escaping Handler) -> UUID {
+        let id = UUID()
+        lock.lock(); subscribers[id] = handler; lock.unlock()
+        return id
     }
 
-    private func currentHandler() -> ((HandObservation?, DetectorStats) -> Void)? {
-        lock.lock(); defer { lock.unlock() }
-        return _handler
+    func unsubscribe(_ id: UUID) {
+        lock.lock(); subscribers.removeValue(forKey: id); lock.unlock()
     }
+
+    private func currentSubscribers() -> [Handler] {
+        lock.lock(); defer { lock.unlock() }
+        return Array(subscribers.values)
+    }
+
+    // MARK: - Input
 
     /// Submit a frame for processing. If the detector is busy, the new frame replaces
     /// the pending one — guarantees latest-frame processing under inference latency.
@@ -69,7 +83,6 @@ final class HandPoseDetector {
                 self.lock.unlock()
 
                 // Rate-cap: skip this frame if we processed one too recently.
-                // Without the cap, on slower hardware Vision can saturate a CPU core.
                 let now = CACurrentMediaTime()
                 if now - self.lastVisionTime < self.minVisionIntervalSec {
                     continue
@@ -91,10 +104,14 @@ final class HandPoseDetector {
                     : (0.9 * self.latencyEMA + 0.1 * visionElapsedMs)
 
                 let stats = DetectorStats(frameRateHz: self.fpsEMA, visionLatencyMs: self.latencyEMA)
-                self.currentHandler()?(obs, stats)
+                for handler in self.currentSubscribers() {
+                    handler(obs, stats)
+                }
             }
         }
     }
+
+    // MARK: - Vision
 
     private func runVision(on buffer: CVPixelBuffer, timestamp: CMTime) -> HandObservation? {
         let handler = VNImageRequestHandler(cvPixelBuffer: buffer, orientation: .up, options: [:])

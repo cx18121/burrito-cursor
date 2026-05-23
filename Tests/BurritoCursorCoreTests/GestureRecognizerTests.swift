@@ -105,6 +105,32 @@ final class GestureRecognizerTests: XCTestCase {
         }
     }
 
+    func testPoseFlickerDuringPinchHoldsClick() {
+        // Regression: when pose briefly classifies as something other than
+        // .pointing (middle finger extends, say) while the pinch is still
+        // active, we must stay in .clicking — not flicker to .pointing and
+        // back, which would emit phantom mouseUp+mouseDown.
+        let r = GestureRecognizer(config: .defaults)
+        for i in 0..<2 { _ = r.step(pointingHand(t: Double(i)/30)) }
+        _ = r.step(pointingHand(t: 2.0/30, pinching: true))  // .clicking
+
+        // Frame with index+middle extended (pinching still on): pose.kind
+        // becomes .unknown (neither pointing nor openPalm) but pinch endures.
+        let flicker = HandBuilder.makeHand(
+            indexBendDeg: 180,
+            middleBendDeg: 180,
+            ringBendDeg: 60,
+            pinkyBendDeg: 60,
+            thumbBendDeg: 60,
+            pinching: true,
+            timestamp: 3.0/30
+        )
+        let state = r.step(flicker)
+        guard case .clicking = state else {
+            return XCTFail("Pose flicker during sustained pinch must NOT release click, got \(state)")
+        }
+    }
+
     // MARK: - Scroll
 
     func testEnterScrollFromPointing() {

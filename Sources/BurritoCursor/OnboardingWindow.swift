@@ -1,42 +1,32 @@
 import AppKit
-import AVFoundation
 import CoreImage
 import CoreVideo
-import Vision
 import BurritoCursorCore
 
+/// Live camera preview + status line + landmark overlay. Owns no camera or
+/// detector — `AppController` feeds it `handleFrame` + `handleSnapshot` while
+/// the window is open, then unsubscribes on close. This makes the preview
+/// architecturally identical whether the cursor is also running or not.
 final class OnboardingWindow: NSWindowController {
     private let previewView = NSImageView()
     private let statusLabel = NSTextField(labelWithString: "Waiting for camera…")
     private let instructionsLabel = NSTextField(wrappingLabelWithString: """
         Point your index finger at the screen with other fingers curled.
-        Bend your index finger to click. Extend index + middle for scroll.
+        Pinch thumb + index to click. Open palm to scroll.
         """)
-    private var camera: CameraPipeline?
-    private var detector: HandPoseDetector?
     private let ciContext = CIContext()
 
     /// Most recent observation, used to overlay landmarks on the preview.
-    /// Lock-guarded — written from capture queue, read on main during draw.
-    private var latestObservation: HandObservation?
+    /// Lock-guarded — written from the snapshot-dispatch path, read on main
+    /// during draw. We hold the landmarks (not the whole snapshot) because
+    /// rendering only needs the point map.
+    private var latestPoints: [JointName: NormalizedPoint]?
     private let observationLock = NSLock()
 
-    /// Wall-clock of the last preview render. Used to throttle preview rendering
-    /// to ~15fps — full 30fps was the source of severe slowdown (NSImage lockFocus
-    /// + bitmap composition on the main thread is expensive on retina displays).
-    /// Hand pose detection still runs at full camera rate; only the preview throttles.
+    /// Throttle preview rendering to ~15fps. Hand pose detection still runs at
+    /// the camera's full rate; only the preview render path throttles.
     private var lastPreviewRenderTime: Double = 0
     private let previewMinFrameIntervalSec: Double = 1.0 / 15.0
-
-    /// Lock-guarded "have we seen at least one frame" flag. Written from the
-    /// camera capture queue; read from main when the window closes.
-    private var _capturedAtLeastOneFrame = false
-    /// True once we've received at least one camera frame. AppController reads
-    /// this to decide whether to mark first-run as complete.
-    var capturedAtLeastOneFrame: Bool {
-        observationLock.lock(); defer { observationLock.unlock() }
-        return _capturedAtLeastOneFrame
-    }
 
     convenience init() {
         let win = NSWindow(
@@ -73,92 +63,41 @@ final class OnboardingWindow: NSWindowController {
         cv.addSubview(instructionsLabel)
     }
 
-    func startPreview() {
-        // Always rebuild — CameraPipeline / HandPoseDetector are not designed
-        // for restart on the same instance.
-        stopPreview()
-        let cam = CameraPipeline()
-        let det = HandPoseDetector()
-        det.setHandler { [weak self] obs, _ in
-            self?.observationLock.lock()
-            self?.latestObservation = obs
-            self?.observationLock.unlock()
-            DispatchQueue.main.async {
-                if let obs, !obs.points.isEmpty {
-                    let pose = PoseClassifier.classify(obs)
-                    self?.statusLabel.stringValue = String(
-                        format: "%@ — index %d° middle %d° conf %.2f",
-                        String(describing: pose.kind),
-                        Int(pose.indexAngleDeg),
-                        Int(pose.middleAngleDeg),
-                        obs.minConfidence
-                    )
-                } else {
-                    self?.statusLabel.stringValue = "No hand visible"
-                }
-            }
-        }
-        do {
-            try cam.start { [weak self] buf, ts in
-                guard let self else { return }
-                self.observationLock.lock()
-                self._capturedAtLeastOneFrame = true
-                self.observationLock.unlock()
-                det.submit(buffer: buf, timestamp: ts)
-                self.updatePreview(buf)
-            }
-            self.camera = cam
-            self.detector = det
-        } catch {
-            statusLabel.stringValue = "Camera error: \(error.localizedDescription)"
-        }
-    }
+    // MARK: - Fed by AppController
 
-    private func stopPreview() {
-        camera?.stop()
-        camera = nil
-        detector = nil
-    }
-
-    private func updatePreview(_ pb: CVPixelBuffer) {
-        // Throttle preview rendering to ~15fps. Detection still runs at full rate.
+    /// Frame callback from the upstream pipeline. Throttled internally.
+    func handleFrame(_ pb: CVPixelBuffer) {
         let now = CACurrentMediaTime()
         if now - lastPreviewRenderTime < previewMinFrameIntervalSec { return }
         lastPreviewRenderTime = now
 
-        // CoreImage extraction is thread-safe; do it off-main.
         let ci = CIImage(cvPixelBuffer: pb)
         guard let cg = ciContext.createCGImage(ci, from: ci.extent) else { return }
-        let w = Int(ci.extent.width)
-        let h = Int(ci.extent.height)
+        let w = Int(ci.extent.width), h = Int(ci.extent.height)
 
         observationLock.lock()
-        let obs = latestObservation
+        let points = latestPoints
         observationLock.unlock()
 
-        // Build the composed image off-main using a direct CGContext bitmap.
-        // This avoids NSImage(size:) + lockFocus allocation overhead — that
-        // pattern was the source of the slowness on retina displays.
+        // Compose camera + landmarks via a direct CGContext bitmap.
+        // (NSImage(size:) + lockFocus has too much allocation overhead on retina.)
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard let ctx = CGContext(
-            data: nil,
-            width: w, height: h,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
+            data: nil, width: w, height: h,
+            bitsPerComponent: 8, bytesPerRow: 0,
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return }
-        // Horizontal flip — selfie view. Without this the preview looks backwards
-        // (you see yourself as the camera sees you, not as a mirror would).
-        // HandObservation x coords are already pre-mirrored to match user-relative
+
+        // Selfie mirror — HandObservation.x is pre-mirrored to match user-relative
         // space, so flipping the camera here makes landmarks line up at p.x * width.
         ctx.saveGState()
         ctx.translateBy(x: CGFloat(w), y: 0)
         ctx.scaleBy(x: -1, y: 1)
         ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
         ctx.restoreGState()
-        if let obs, !obs.points.isEmpty {
-            OnboardingWindow.drawLandmarks(obs, into: ctx, width: w, height: h)
+        if let points, !points.isEmpty {
+            Self.drawLandmarks(points, into: ctx, width: w, height: h)
         }
         guard let finalCG = ctx.makeImage() else { return }
         let composed = NSImage(cgImage: finalCG, size: NSSize(width: w, height: h))
@@ -168,17 +107,47 @@ final class OnboardingWindow: NSWindowController {
         }
     }
 
-    /// Draws hand landmarks directly into a CGContext (faster than NSBezierPath).
-    /// Coords are un-mirrored to match the camera image.
+    /// Snapshot callback from the upstream pipeline. Updates the status line
+    /// and stashes the landmark map for the next frame's overlay draw.
+    func handleSnapshot(_ s: PipelineSnapshot) {
+        observationLock.lock()
+        latestPoints = s.observation?.points
+        observationLock.unlock()
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if let pose = s.pose {
+                self.statusLabel.stringValue = String(
+                    format: "%@ — index %d° middle %d° conf %.2f pinch %.2f",
+                    String(describing: pose.kind),
+                    Int(pose.indexAngleDeg),
+                    Int(pose.middleAngleDeg),
+                    s.minConfidence,
+                    pose.pinchDistance
+                )
+            } else {
+                self.statusLabel.stringValue = "No hand visible"
+            }
+        }
+    }
+
+    /// Shown when the cursor pipeline is paused and no frames are flowing.
+    func showPaused() {
+        observationLock.lock(); latestPoints = nil; observationLock.unlock()
+        DispatchQueue.main.async { [weak self] in
+            self?.statusLabel.stringValue = "Camera paused"
+        }
+    }
+
+    // MARK: - Landmark drawing
+
     private static func drawLandmarks(
-        _ obs: HandObservation, into ctx: CGContext, width: Int, height: Int
+        _ points: [JointName: NormalizedPoint], into ctx: CGContext, width: Int, height: Int
     ) {
         let dotRadius: CGFloat = 4
         let lineWidth: CGFloat = 2
 
-        func cgPoint(_ p: BurritoCursorCore.NormalizedPoint) -> CGPoint {
-            // HandObservation.x is already mirrored (user-relative); the camera
-            // image above is also drawn flipped, so landmarks align at p.x * width.
+        func cgPoint(_ p: NormalizedPoint) -> CGPoint {
             CGPoint(x: p.x * Double(width), y: p.y * Double(height))
         }
 
@@ -196,24 +165,19 @@ final class OnboardingWindow: NSWindowController {
             var didMove = false
             ctx.beginPath()
             for j in joints {
-                guard let p = obs.points[j] else { continue }
+                guard let p = points[j] else { continue }
                 let sp = cgPoint(p)
                 if didMove { ctx.addLine(to: sp) } else { ctx.move(to: sp); didMove = true }
             }
             ctx.strokePath()
         }
         ctx.setFillColor(NSColor.white.withAlphaComponent(0.9).cgColor)
-        for (_, p) in obs.points {
+        for (_, p) in points {
             let sp = cgPoint(p)
             ctx.fillEllipse(in: CGRect(
                 x: sp.x - dotRadius, y: sp.y - dotRadius,
                 width: dotRadius * 2, height: dotRadius * 2
             ))
         }
-    }
-
-    override func close() {
-        stopPreview()
-        super.close()
     }
 }

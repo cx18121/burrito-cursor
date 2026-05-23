@@ -15,7 +15,11 @@ final class InputCoordinator {
 
         switch state {
         case .idle, .degraded:
+            // Hand-loss path: release any held click AND clear the cursor's
+            // last-position anchor so the next .pointing frame doesn't compute
+            // a huge delta from a stale position (cursor-jump-on-recovery).
             forceReleaseLocked()
+            cursorController?.reset()
         case .pointing(let p):
             forceReleaseLocked()
             cursorController?.handlePointing(at: p)
