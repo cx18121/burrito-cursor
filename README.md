@@ -13,7 +13,7 @@ Then open from Raycast / Spotlight ("burrito cursor") or `~/Applications/Burrito
 ## Gestures
 
 - **Point** — index finger extended, others curled → moves the cursor
-- **Click** — bend your index finger
-- **Scroll** — index + middle fingers extended, move hand up/down
+- **Click** — pinch thumb to index fingertip
+- **Scroll** — open palm (all 5 fingers extended), move hand up/down
 
 Drop the pose any time to freeze the cursor.
