@@ -1,6 +1,6 @@
 # 🌯 burrito cursor
 
-Control your Mac cursor with hand gestures via the webcam, for when your hands are messy from eating.
+Control your Mac cursor with hand gestures via the webcam, for when your hands are messy from eating. inspired by not wanting to navigate around youtube with dirty hands on my trackpad, while eating a chipotle burrito.
 
 ## Install
 
