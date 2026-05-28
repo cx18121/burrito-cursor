@@ -17,7 +17,3 @@ Then open from Raycast / Spotlight ("burrito cursor") or `~/Applications/Burrito
 - **Scroll** — index + middle fingers extended, move hand up/down
 
 Drop the pose any time to freeze the cursor.
-
----
-
-Native macOS, Swift + Vision framework.
